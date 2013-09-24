@@ -1,4 +1,0 @@
-erl_crash.dump
-ebin
-include/packet_pb.hrl
-deps
