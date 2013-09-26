@@ -112,7 +112,7 @@ int main (int argc, char **argv) {
   char buf[15];
   sprintf(buf, "tcp://*:%s", port);
   if (!QUIET) {
-    int rc = zmq_bind(zmq_socket, buf);
+    int rc = zmq_bind(socket, buf);
     assert (rc == 0);
   }
 

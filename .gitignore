@@ -1,9 +1,6 @@
 packet.pb.cc
 packet.pb.h
-server_release
-server_release_zone
-metric.tar.gz
-generator
-generator_zone
+tachyon-agent.tar.gz
+tachyon-agent
 pckt.pb.cc
 pckt.pb.h
