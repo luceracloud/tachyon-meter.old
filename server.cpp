@@ -7,7 +7,7 @@
  *
  *    COMPILE WITH:
  *      g++ server.cpp pckt.pb.cc -ldtrace
- *        -lzmq -lkstat -lprotobuf -O2 
+ *        -lzmq -lkstat -lprotobuf -O2
  *        -o server_release
  *
  *    CREATED:  16 JUL 2013
@@ -25,7 +25,7 @@
 #include <time.h>
 #include <sstream>
 
-#include <zmq.hpp>
+#include <zmq.h>
 #include "pckt.pb.h"
 
 #include "util.hpp"
@@ -35,150 +35,152 @@
 #include "dtrace.hpp"
 
 /*
- *  Forward declarations 
+ *  Forward declarations
  */
-int send_message (PBMSG::Packet pckt, zmq::socket_t *socket);
+int send_message (PBMSG::Packet pckt, void *socket);
 void sig_handler (int s);
 void splash ();
 void usage ();
 
-/* 
+/*
  *  Global verbose & running variables
  */
 bool do_loop = 1;
-bool VERBOSE = 0; 
+bool VERBOSE = 0;
 
 /*
  *  Entry point
  */
 int main (int argc, char **argv) {
 
-    /* Handle signals (for cleanup) */
-    signal (SIGINT, sig_handler);
-    signal (SIGTERM, sig_handler);
-    signal (SIGQUIT, sig_handler);
+  /* Handle signals (for cleanup) */
+  signal (SIGINT, sig_handler);
+  signal (SIGTERM, sig_handler);
+  signal (SIGQUIT, sig_handler);
 
-    splash();
+  splash();
 
-    /* Variable declarations */
-    kstat_ctl_t *kc;        // Pointer to kstat chain
-    bool V_LITE = false;
-    bool QUIET = false;
-    time_t millisec = 999;  // Values >= 1000 effect weird behavior
-    const char *port = "7211";
-    const char *host = "smartos-host";
-    zmq::context_t context (1);
-    zmq::socket_t socket (context, ZMQ_PUB);
-    std::map <std::string, Zone *> ZoneData;
-    std::map <size_t, std::string> ZoneIndices;
+  /* Variable declarations */
+  kstat_ctl_t *kc;        // Pointer to kstat chain
+  bool V_LITE = false;
+  bool QUIET = false;
+  time_t millisec = 999;  // Values >= 1000 effect weird behavior
+  const char *port = "7211";
+  const char *host = "smartos-host";
+  void *context = zmq_ctx_new();
+  void *socket = zmq_socket(context, ZMQ_PUB);
+  std::map <std::string, Zone *> ZoneData;
+  std::map <size_t, std::string> ZoneIndices;
 
-    /* Parse command line */
-    for (size_t i=0; i<argc; i++) {
-      if (VERBOSE) printf ( "Argument %s\n", argv[i]);
-      if (!strcmp (argv[i], "-v") || !strcmp (argv[i], "-V")) {
-        std::cout << "\033[00;36m . running in verbose mode\033[00m" << std::endl;
-        VERBOSE = true;
-      }
-      if (!strcmp (argv[i], "-vlite")) {
-        std::cout << "\033[00;36m . running in light verbose mode\n\033[00m";
-        V_LITE = true;
-      }
-      if (!strcmp (argv[i], "-h") || !strcmp (argv[i], "-H")) {
-        std::cout << "\033[00;36m . printing usage information\n\033[00m";
-        usage();
-        return 1;
-      }
-      if (!strcmp (argv[i], "-n") || !strcmp (argv[i], "-N")) {
-        host = argv[i+1];
-        std::cout << "\033[00;36m . using host " << host << "\033[00m\n"; 
-      }
-      if (!strcmp (argv[i], "-p") || !strcmp (argv[i], "-P")) {
-        port = argv[i+1];
-        std::cout << "\033[00;36m . using port " << port << "\033[00m\n"; 
-      }
-      if (!strcmp(argv[i], "-q") || !strcmp (argv[i], "-Q")) {
-        QUIET = 1;
-        std::cout << "\033[00;36m . running in quiet mode\033[00m\n";
-      }
-      if (!strcmp(argv[i], "-d") || !strcmp (argv[i], "-D")) {
-        millisec = atoi(argv[i+1]);
-        if (millisec > 999) millisec = 999;
-        std::cout << "\033[00;36m . using delay of " << argv[i+1] << "\033[00m\n";
-      }
+
+  /* Parse command line */
+  for (size_t i=0; i<argc; i++) {
+    if (VERBOSE) printf ( "Argument %s\n", argv[i]);
+    if (!strcmp (argv[i], "-v") || !strcmp (argv[i], "-V")) {
+      std::cout << "\033[00;36m . running in verbose mode\033[00m" << std::endl;
+      VERBOSE = true;
     }
- 
-    /* Set up zmq socket */
-    char buf[15];
-    sprintf(buf, "tcp://*:%s", port);
-    if (!QUIET) {
-      socket.bind (buf);
+    if (!strcmp (argv[i], "-vlite")) {
+      std::cout << "\033[00;36m . running in light verbose mode\n\033[00m";
+      V_LITE = true;
     }
+    if (!strcmp (argv[i], "-h") || !strcmp (argv[i], "-H")) {
+      std::cout << "\033[00;36m . printing usage information\n\033[00m";
+      usage();
+      return 1;
+    }
+    if (!strcmp (argv[i], "-n") || !strcmp (argv[i], "-N")) {
+      host = argv[i+1];
+      std::cout << "\033[00;36m . using host " << host << "\033[00m\n";
+    }
+    if (!strcmp (argv[i], "-p") || !strcmp (argv[i], "-P")) {
+      port = argv[i+1];
+      std::cout << "\033[00;36m . using port " << port << "\033[00m\n";
+    }
+    if (!strcmp(argv[i], "-q") || !strcmp (argv[i], "-Q")) {
+      QUIET = 1;
+      std::cout << "\033[00;36m . running in quiet mode\033[00m\n";
+    }
+    if (!strcmp(argv[i], "-d") || !strcmp (argv[i], "-D")) {
+      millisec = atoi(argv[i+1]);
+      if (millisec > 999) millisec = 999;
+      std::cout << "\033[00;36m . using delay of " << argv[i+1] << "\033[00m\n";
+    }
+  }
 
-    /* Protobuf stuff */
-    GOOGLE_PROTOBUF_VERIFY_VERSION;
-    
-    /* Dtrace init */
-    dtrace_hdl_t *g_dtp[DTRACE::number]; 
-    for (size_t i=0; i<DTRACE::number; i++) {
-      DTRACE::init (&g_dtp[i], DTRACE::dtrace[i]);
-      DTRACE::setopts (&g_dtp[i]);
-      if (dtrace_go (g_dtp[i])) {
-        UTIL::red();
-        std::cout << "ERROR: Unable to start dtrace script" << std::endl;
-        UTIL::clear();
-      }
-      (void) dtrace_status (g_dtp[i]);
-    } 
+  /* Set up zmq socket */
+  char buf[15];
+  sprintf(buf, "tcp://*:%s", port);
+  if (!QUIET) {
+    int rc = zmq_bind(zmq_socket, buf);
+    assert (rc == 0);
+  }
 
-    /* Kstat init */
-    kc = kstat_open();
-    uint64_t st = time (NULL);  // start time
+  /* Protobuf stuff */
+  GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-    /* Allow us to pass values in and out */
-    uint64_t value;
-    std::vector<uint64_t> values;
-    std::vector<std::string> names;
-    std::vector<std::string> zones;
+  /* Dtrace init */
+  dtrace_hdl_t *g_dtp[DTRACE::number];
+  for (size_t i=0; i<DTRACE::number; i++) {
+    DTRACE::init (&g_dtp[i], DTRACE::dtrace[i]);
+    DTRACE::setopts (&g_dtp[i]);
+    if (dtrace_go (g_dtp[i])) {
+      UTIL::red();
+      std::cout << "ERROR: Unable to start dtrace script" << std::endl;
+      UTIL::clear();
+    }
+    (void) dtrace_status (g_dtp[i]);
+  }
 
-    UTIL::red();
-    std::cout << "\n Server online!";
-    printf ("\n \033[00;31mStart time was: %2d:%2d:%2d UTC\033[00m\n\n", 
-                (st/3600)%24, (st/60)%60, st%60);
-    UTIL::clear();
+  /* Kstat init */
+  kc = kstat_open();
+  uint64_t st = time (NULL);  // start time
 
-    /* Collect and send data in loop */
-    while (do_loop) {
-     
-      /* Clean up from last cycle and updates */
-      ZoneData.clear();
-      ZoneIndices.clear();
- 
-      /* Custom format to add zones to ZoneData &
-       * to populate the repeated zonename in the GZ
-       * zone/packet
-       */
-      if (KSTAT::retreive_multiple_kstat (kc, std::string("zones"), 
-                                          std::string("zonename"), &values, 
-                                          &names, &zones)) {
-        UTIL::red();
-        std::cout << "Something went terribly wrong. We cannot populate the\nlist of zones. "
-                      "Skipping current sample, attempting next time." << std::endl;
-        UTIL::clear();
-      } else {
-        /* Init GZ first to hold other zones & set as type:GZ */
-        size_t z_index = 0;
+  /* Allow us to pass values in and out */
+  uint64_t value;
+  std::vector<uint64_t> values;
+  std::vector<std::string> names;
+  std::vector<std::string> zones;
+
+  UTIL::red();
+  std::cout << "\n Server online!";
+  printf ("\n \033[00;31mStart time was: %2d:%2d:%2d UTC\033[00m\n\n",
+          (st/3600)%24, (st/60)%60, st%60);
+  UTIL::clear();
+
+  /* Collect and send data in loop */
+  while (do_loop) {
+
+    /* Clean up from last cycle and updates */
+    ZoneData.clear();
+    ZoneIndices.clear();
+
+    /* Custom format to add zones to ZoneData &
+     * to populate the repeated zonename in the GZ
+     * zone/packet
+     */
+    if (KSTAT::retreive_multiple_kstat (kc, std::string("zones"),
+                                        std::string("zonename"), &values,
+                                        &names, &zones)) {
+      UTIL::red();
+      std::cout << "Something went terribly wrong. We cannot populate the\nlist of zones. "
+        "Skipping current sample, attempting next time." << std::endl;
+      UTIL::clear();
+    } else {
+      /* Init GZ first to hold other zones & set as type:GZ */
+      size_t z_index = 0;
 #ifdef ZONE
-        for (size_t i=0; i<zones.size(); i++) {
+      for (size_t i=0; i<zones.size(); i++) {
 #else
-        ZoneData.insert (std::make_pair (std::string("global"), 
-                              new Zone ("global", true)));
+        ZoneData.insert (std::make_pair (std::string("global"),
+                                         new Zone ("global", true)));
         ZoneIndices.insert (std::make_pair (z_index, "global"));
         for (size_t i=0; i<zones.size(); i++) {
           ZoneData["global"]->add_zone (&zones.at (i));
 #endif
           if (names.at(i)!="global") {
-            ZoneData.insert (std::make_pair (zones.at(i), 
-                              new Zone (std::string( zones.at (i)), false)));
+            ZoneData.insert (std::make_pair (zones.at(i),
+                                             new Zone (std::string( zones.at (i)), false)));
             ZoneIndices.insert (std::make_pair (z_index, zones.at (i)));
           }
           z_index++;
@@ -193,7 +195,7 @@ int main (int argc, char **argv) {
           UTIL::clear();
         }
       }
-     
+
       /*
        * Grab memory statistics, first
        * from GZ, then from elsewhere.
@@ -202,7 +204,7 @@ int main (int argc, char **argv) {
 #else
       for (size_t i=0; i<MEM::GZ_size; i++) {
         if (KSTAT::retreive_kstat (kc, MEM::GZ_modl[i], MEM::GZ_name[i],
-                                    MEM::GZ_stat[i], -1, &value)) {
+                                   MEM::GZ_stat[i], -1, &value)) {
           std::cout << "Unable to grab memory statistic\n";
         } else {
           ZoneData["global"]->add_mem (&MEM::GZ_stat[i], value);
@@ -210,10 +212,10 @@ int main (int argc, char **argv) {
       }
 #endif
       for (size_t i=0; i<MEM::size; i++) {
-        if (KSTAT::retreive_multiple_kstat (kc, MEM::modl[i], MEM::stat[i], 
+        if (KSTAT::retreive_multiple_kstat (kc, MEM::modl[i], MEM::stat[i],
                                             &values, &names, &zones)) {
           std::cout << "Unable to retreive expected kstats for " << MEM::modl[i] << " " <<
-                        MEM::stat[i] << __LINE__ << std::endl;
+            MEM::stat[i] << __LINE__ << std::endl;
         } else {
           for (size_t j=0; j<names.size(); j++) {
             ZoneData[zones.at(j)]->add_mem (&MEM::stat[i], values.at (j));
@@ -228,10 +230,10 @@ int main (int argc, char **argv) {
        * ones
        */
       for (size_t i=0; i<NET::size; i++) {
-        if (KSTAT::retreive_multiple_kstat (kc, NET::modl[i], NET::stat[i], 
+        if (KSTAT::retreive_multiple_kstat (kc, NET::modl[i], NET::stat[i],
                                             &values, &names, &zones)) {
           std::cout << "Unable to retreive expected kstat for " << NET::modl[i] << " " <<
-                       NET::stat[i] << __LINE__ << std::endl;
+            NET::stat[i] << __LINE__ << std::endl;
         } else {
           for (size_t j=0; j<values.size(); j++) {
             ZoneData[zones.at (j)]->add_network (&names.at (j), &NET::stat[i], values.at (j));
@@ -255,10 +257,10 @@ int main (int argc, char **argv) {
           std::string GZ_name_str = GZ_name.str();
           if (DISK::GZ_modl[i]=="sderr") GZ_name << ",err";
           if (KSTAT::retreive_kstat (kc, DISK::GZ_modl[i], GZ_name.str(),
-                                  DISK::GZ_stat[i], -1, &value)) {
-            std::cout << "Unable to retreive expected GZ kstat for " << 
-                          DISK::GZ_modl[i] << " " << " " << DISK::GZ_stat[i] << 
-                          "server.cpp:" << __LINE__ << std::endl;
+                                     DISK::GZ_stat[i], -1, &value)) {
+            std::cout << "Unable to retreive expected GZ kstat for " <<
+              DISK::GZ_modl[i] << " " << " " << DISK::GZ_stat[i] <<
+              "server.cpp:" << __LINE__ << std::endl;
           } else {
             ZoneData["global"]->add_disk (&GZ_name_str, &DISK::GZ_stat[i], value);
           }
@@ -266,10 +268,10 @@ int main (int argc, char **argv) {
       }
 #endif
       for (size_t i=0; i<DISK::size; i++) {
-        if (KSTAT::retreive_multiple_kstat (kc, DISK::modl[i], DISK::stat[i], 
+        if (KSTAT::retreive_multiple_kstat (kc, DISK::modl[i], DISK::stat[i],
                                             &values, &names, &zones)) {
           std::cout << "Unable to retreive expected kstat for " << DISK::modl[i] << " " <<
-                       DISK::stat[i] << " server.cpp:" << __LINE__ << std::endl;
+            DISK::stat[i] << " server.cpp:" << __LINE__ << std::endl;
         } else {
           for (size_t j=0; j<values.size(); j++) {
             ZoneData[zones.at (j)]->add_disk (&DISK::modl[i], &DISK::stat[i], values.at (j));
@@ -283,12 +285,12 @@ int main (int argc, char **argv) {
         if (dtrace_aggregate_snap (g_dtp[i]) != 0) {
           UTIL::yellow();
           std::cout << "WARN: Failed to snap aggregate" << std::endl;
-          UTIL::clear();      
+          UTIL::clear();
         }
         if (dtrace_aggregate_walk_valsorted (g_dtp[i], DTRACE::aggwalk, &ZoneData) != 0) {
           UTIL::yellow();
           std::cout << "WARN: Failed to walk aggregate" << std::endl;
-          UTIL::clear();  
+          UTIL::clear();
         }
         if (VERBOSE) std::cout << "===========================================" << std::endl;
       }
@@ -302,7 +304,7 @@ int main (int argc, char **argv) {
           std::cout << std::endl << "BEGIN Zone Packet:" << std::endl;
           UTIL::clear();
           ZoneData.at(ZoneIndices.at(i))->print_zone();
-        } 
+        }
       }
 
       for (size_t i=0; i<ZoneData.size(); i++) {
@@ -315,7 +317,7 @@ int main (int argc, char **argv) {
                       (time(NULL)/60)%60 << ":" << time(NULL)%60 << std::endl;
         if (VERBOSE) std::cout << "Packet sent" << std::endl;
       }
-        
+
       struct timespec req = {0};
       req.tv_sec = 0;
       req.tv_nsec = millisec * 1000000L;
@@ -324,72 +326,70 @@ int main (int argc, char **argv) {
 
     /* Kill DTrace scripts */
     for (size_t scpt=0; scpt<DTRACE::number; scpt++) {
-      dtrace_close (g_dtp[scpt]); 
+      dtrace_close (g_dtp[scpt]);
     }
     UTIL::cyan();
     std::cout << " . dtrace scripts killed" << std::endl;
-    UTIL::clear();    
+    UTIL::clear();
 
     /* Shutdown ProtoBuf library */
     google::protobuf::ShutdownProtobufLibrary();
 
     return 0;
-}
-
-/*
- * This function sends a message 
- * over the established zmq socket
- */
-int send_message (PBMSG::Packet pckt, zmq::socket_t *socket) {
-  try {
-    std::string pckt_serialized;
-    pckt.SerializeToString (&pckt_serialized);
-    zmq::message_t msg (pckt_serialized.size());
-    memcpy ((void *)msg.data(), pckt_serialized.c_str(), pckt_serialized.size());
-    socket->send (msg, ZMQ_NOBLOCK);
-  } catch (int e) {
-    std::cout << "Error number " << e << std::endl;
-    return -1;
   }
-  return 0;
-}
 
-/*
- * Handle signals so that we don't have to
- * worry about errant dtrace scripts
- */
-void sig_handler (int s) {
-  do_loop = 0;
-  UTIL::cyan();
-  std::cout << "\n\nSafely killing program...\nStopping dtrace script interface\n";
-  UTIL::clear();
-}
+  /*
+   * This function sends a message
+   * over the established zmq socket
+   */
+  int send_message (PBMSG::Packet pckt, void *socket) {
+    try {
+      std::string pckt_serialized;
+      pckt.SerializeToString (&pckt_serialized);
+      //      memcpy ((void *)msg.data(), pckt_serialized.c_str(), pckt_serialized.size());
+      zmq_send(socket, pckt_serialized.c_str(), pckt_serialized.size(), ZMQ_NOBLOCK);
+    } catch (int e) {
+      std::cout << "Error number " << e << std::endl;
+      return -1;
+    }
+    return 0;
+  }
 
-/*
- * Prints splash screen to user
- */
-void splash () {
-  UTIL::white();
-  std::cout << "\n Statistics Server\n";
-  std::cout << "\n  Reports dtrace and kstat statistics\n";
-  std::cout << "  using Google Protocol Buffers and\n";
-  std::cout << "  ZMQ (0MQ) sockets.\n\n";
-  UTIL::clear();
-}
+  /*
+   * Handle signals so that we don't have to
+   * worry about errant dtrace scripts
+   */
+  void sig_handler (int s) {
+    do_loop = 0;
+    UTIL::cyan();
+    std::cout << "\n\nSafely killing program...\nStopping dtrace script interface\n";
+    UTIL::clear();
+  }
 
-/*
- * Prints usage information to user
- */
-void usage () {
-  UTIL::white();
-  std::cout << "\nusage:  server [-h] [-p NUMBER] [-v] [-vlite] [-d DELAY] [-q]"; 
-  std::cout << "\n    -h         prints this help/usage page";
-  std::cout << "\n    -p PORT    use port PORT";
-  std::cout << "\n    -v         run in verbose mode (print all queries and ZMQ packets)";
-  std::cout << "\n    -vlite     prints time (and dtrace ticks (tick-4999)) for each sent message";
-  std::cout << "\n    -d DELAY   wait DELAY<1000 ms instead of default 1000";
-  std::cout << "\n    -q         quiet mode, prints diagnostic information and does not send messages";
-  std::cout << "\n\n";
-  UTIL::clear();
-}
+  /*
+   * Prints splash screen to user
+   */
+  void splash () {
+    UTIL::white();
+    std::cout << "\n Statistics Server\n";
+    std::cout << "\n  Reports dtrace and kstat statistics\n";
+    std::cout << "  using Google Protocol Buffers and\n";
+    std::cout << "  ZMQ (0MQ) sockets.\n\n";
+    UTIL::clear();
+  }
 
+  /*
+   * Prints usage information to user
+   */
+  void usage () {
+    UTIL::white();
+    std::cout << "\nusage:  server [-h] [-p NUMBER] [-v] [-vlite] [-d DELAY] [-q]";
+    std::cout << "\n    -h         prints this help/usage page";
+    std::cout << "\n    -p PORT    use port PORT";
+    std::cout << "\n    -v         run in verbose mode (print all queries and ZMQ packets)";
+    std::cout << "\n    -vlite     prints time (and dtrace ticks (tick-4999)) for each sent message";
+    std::cout << "\n    -d DELAY   wait DELAY<1000 ms instead of default 1000";
+    std::cout << "\n    -q         quiet mode, prints diagnostic information and does not send messages";
+    std::cout << "\n\n";
+    UTIL::clear();
+  }
