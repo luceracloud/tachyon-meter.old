@@ -21,7 +21,7 @@ pckt.pb.h pckt.pb.c:
 	protoc -I=. --cpp_out=. ./pckt.proto
 
 rel: generator
-	cp tachyon-agent tachyon-agent/bin
+	cp tachyon-agent meter/bin
 
 clean:
 	-rm pckt.pb.cc
