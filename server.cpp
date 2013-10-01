@@ -216,6 +216,21 @@ int main (int argc, char **argv) {
       }
     }
 
+    if (KSTAT::retreive_multiple_kstat (kc, std::string("caps"), std::string("usage"),
+                                        &values, &names, &zones)) {
+      std::cout << "Unable to retreive expected kstats for caps::usage " << __LINE__ << std::endl;
+    } else {
+      for (size_t i = 0; i < names.size(); i++) {
+        if (zones.at(i) == "global") {
+          std::cout << "Zone: " << zones.at(i) << " " << names.at(i)  << ": " << values.at(i) << std::endl;
+        }
+        if (names.at(i).find("nprocs_zone_") != -1) {
+          std::cout << "Zone: " << zones.at(i) << " " << names.at(i)  << ": " << values.at(i) << std::endl;
+          ZoneData[zones.at(i)]->set_processes(values.at(i));
+        }
+      }
+    }
+
     /*
      * Grab network statistics, we
      * only care about NGZ stats,

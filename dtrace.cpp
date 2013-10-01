@@ -173,7 +173,7 @@ namespace DTRACE {
         } else if (i==5) {
           data.pid = EX32(addr);
         } else if (i==6) {
-          // done as proc ZoneData->at(data.zonename)->add_process(data.pid, &data.name, EX32(addr), data.core);
+          ZoneData->at(data.zonename)->add_process(data.pid, &data.name, EX32(addr), data.core);
         }
       }
 
@@ -187,7 +187,7 @@ namespace DTRACE {
       // process count
       if (data.type==3) {
         if (i==4) {
-          ZoneData->at(data.zonename)->add_process();
+          //          ZoneData->at(data.zonename)->add_process();
         }
       }
 

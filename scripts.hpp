@@ -14,40 +14,45 @@ namespace MEM {
   /* Global-zone specific scripts */
   const size_t GZ_size = 5;
   std::string GZ_modl[ GZ_size ] = { "unix", "unix", "unix", "unix", "unix" };
-  std::string GZ_name[ GZ_size ] = { "system_pages", "system_pages", "system_pages", 
-                                      "system_pages", "system_pages" }; 
-  std::string GZ_stat[ GZ_size ] = { "physmem", "pp_kernel", "freemem", "nalloc_calls", 
-                                      "nfree_calls" };
+  std::string GZ_name[ GZ_size ] = { "system_pages", "system_pages", "system_pages",
+                                     "system_pages", "system_pages" };
+  std::string GZ_stat[ GZ_size ] = { "physmem", "pp_kernel", "freemem", "nalloc_calls",
+                                     "nfree_calls" };
 
   /* Other */
   const size_t size = 4;
   std::string modl[ size ] = { "memory_cap", "memory_cap", "memory_cap", "memory_cap" };
   std::string stat[ size ] = { "rss", "physcap", "swap", "swapcap" };
-} 
+}
 
 namespace NET {
   /* NGZ scripts */
   const size_t size = 6;
   std::string modl[ size ] = { "link", "link", "link", "link", "link", "link" };
-  std::string stat[ size ] = { "obytes64", "rbytes64", "opackets", "ipackets", 
-                                  "oerrors", "ierrors" };
+  std::string stat[ size ] = { "obytes64", "rbytes64", "opackets", "ipackets",
+                               "oerrors", "ierrors" };
 }
 
 namespace DISK {
   /* Global-zone specific scripts */
   const size_t GZ_size = 11;
-  std::string GZ_modl[ GZ_size ] = { "sd", "sd", "sd", "sd", "sd", "sd", "sd", "sd", 
-                                        "sderr", "sderr", "sderr" };
-  std::string GZ_stat[ GZ_size ] = { "nread", "nwritten", "reads", "writes", "rtime", 
-          "wtime", "rlentime", "wlentime", "Hard Errors", "Soft Errors", "Transport Errors" };
+  std::string GZ_modl[ GZ_size ] = { "sd", "sd", "sd", "sd", "sd", "sd", "sd", "sd",
+                                     "sderr", "sderr", "sderr" };
+  std::string GZ_stat[ GZ_size ] = { "nread", "nwritten", "reads", "writes", "rtime",
+                                     "wtime", "rlentime", "wlentime", "Hard Errors", "Soft Errors", "Transport Errors" };
 
   /* Other */
   const size_t size = 14;
-  std::string modl[ size ] = { "zone_zfs", "zone_zfs", "zone_zfs", "zone_zfs", 
-                  "zone_zfs", "zone_zfs", "zone_vfs", "zone_vfs", "zone_vfs", 
-                  "zone_vfs", "zone_vfs", "zone_vfs", "zone_vfs", "zone_vfs" };
-  std::string stat[ size ] = { "nread", "nwritten", "reads", "writes", "rtime", "rlentime", 
-        "nread", "nwritten", "reads", "rlentime", "rtime", "wlentime", "writes", "wtime" };
+  std::string modl[ size ] = { "zone_zfs", "zone_zfs", "zone_zfs", "zone_zfs",
+                               "zone_zfs", "zone_zfs", "zone_vfs", "zone_vfs", "zone_vfs",
+                               "zone_vfs", "zone_vfs", "zone_vfs", "zone_vfs", "zone_vfs" };
+  std::string stat[ size ] = { "nread", "nwritten", "reads", "writes", "rtime", "rlentime",
+                               "nread", "nwritten", "reads", "rlentime", "rtime", "wlentime", "writes", "wtime" };
+}
+namespace PROC {
+  const size_t size = 1;
+  std::string modl[ size ] = { "caps" };
+  std::string stat[ size ] = { "usage" };
 }
 
 namespace DTRACE {
@@ -65,7 +70,7 @@ namespace DTRACE {
     (std::string)"profile:::tick-4999\n{\n@[2,zonename] = count();\n}",
 
     (std::string)"syscall:::entry\n{\nself->begun=timestamp;\n}\nsyscall:::return\n"
-        "{\nself->ended=timestamp;\n@[5,zonename]=quantize(self->ended-self->begun);\n}",
+    "{\nself->ended=timestamp;\n@[5,zonename]=quantize(self->ended-self->begun);\n}",
 
     std::string("profile:::profile-4999\n{\n@[3,zonename,pid] = count();\n}"),
 
@@ -81,9 +86,8 @@ namespace DTRACE {
     std::string("vminfo:::pgin\n{\n@[8,zonename] = count();\n}"),
 
     std::string("profile:::profile-4999\n/curthread->t_cpu->cpu_disp->disp_nrunnable > "
-        "0/\n{\n@[9,\"global\",cpu,curthread->t_cpu->cpu_disp->disp_nrunnable] = count();\n}")
+                "0/\n{\n@[9,\"global\",cpu,curthread->t_cpu->cpu_disp->disp_nrunnable] = count();\n}")
 #endif
   };
 
 }
-
