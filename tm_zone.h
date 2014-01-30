@@ -84,7 +84,7 @@ public:
       this->packet->mutable_mem(0)->set_pgin (x);
     } else {
       UTIL::yellow();
-      std::cout << "WARN: encountered unknown type in memory @Zone.hpp:" <<
+      std::cout << "WARN: encountered unknown type in memory @Zone.h:" <<
         __LINE__ << std::endl;
       UTIL::clear();
     }
@@ -151,7 +151,7 @@ public:
       net->set_ierrors (v);
     } else {
       UTIL::yellow();
-      std::cout << "WARN: encountered unknown type in network @zone.hpp:" <<
+      std::cout << "WARN: encountered unknown type in network @zone.h:" <<
         __LINE__ << std::endl;
       UTIL::clear();
     }
@@ -193,7 +193,7 @@ public:
       disk->set_tranerror (v);
     } else {
       UTIL::yellow();
-      std::cout << "WARN: encountered unknown type in disk @Zone.hpp:" <<
+      std::cout << "WARN: encountered unknown type in disk @Zone.h:" <<
         __LINE__ << std::endl;
     }
   }

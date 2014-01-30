@@ -28,11 +28,11 @@
 #include <zmq.h>
 #include "pckt.pb.h"
 
-#include "util.hpp"
-#include "scripts.hpp"
-#include "kstat.hpp"
-#include "zone.hpp"
-#include "dtrace.hpp"
+#include "tm_util.h"
+#include "tm_scripts.h"
+#include "tm_kstat.h"
+#include "tm_zone.h"
+#include "tm_dtrace.h"
 
 /*
  *  Forward declarations
@@ -159,9 +159,8 @@ int main (int argc, char **argv) {
      * to populate the repeated zonename in the GZ
      * zone/packet
      */
-    if (KSTAT::retreive_multiple_kstat (kc, std::string("zones"),
-                                        std::string("zonename"), &values,
-                                        &names, &zones)) {
+    if (KSTAT::retrieve_multiple_kstat (kc, "zones", "zonename",
+					values, names, zones)) {
       UTIL::red();
       std::cout << "Something went terribly wrong. We cannot populate the\nlist of zones. "
         "Skipping current sample, attempting next time." << std::endl;
@@ -197,17 +196,21 @@ int main (int argc, char **argv) {
      * from GZ, then from elsewhere.
      */
     for (size_t i=0; i<MEM::GZ_size; i++) {
-      if (KSTAT::retreive_kstat (kc, MEM::GZ_modl[i], MEM::GZ_name[i],
-                                 MEM::GZ_stat[i], -1, &value)) {
+      if (KSTAT::retrieve_kstat (kc,
+				 MEM::GZ_modl[i],
+				 MEM::GZ_name[i],
+                                 MEM::GZ_stat[i],
+				 -1,
+				 value)) {
         std::cout << "Unable to grab memory statistic\n";
       } else {
         ZoneData["global"]->add_mem (&MEM::GZ_stat[i], value);
       }
     }
     for (size_t i=0; i<MEM::size; i++) {
-      if (KSTAT::retreive_multiple_kstat (kc, MEM::modl[i], MEM::stat[i],
-                                          &values, &names, &zones)) {
-        std::cout << "Unable to retreive expected kstats for " << MEM::modl[i] << " " <<
+      if (KSTAT::retrieve_multiple_kstat (kc, MEM::modl[i], MEM::stat[i],
+                                          values, names, zones)) {
+        std::cout << "Unable to retrieve expected kstats for " << MEM::modl[i] << " " <<
           MEM::stat[i] << __LINE__ << std::endl;
       } else {
         for (size_t j=0; j<names.size(); j++) {
@@ -216,9 +219,9 @@ int main (int argc, char **argv) {
       }
     }
 
-    if (KSTAT::retreive_multiple_kstat (kc, std::string("caps"), std::string("usage"),
-                                        &values, &names, &zones)) {
-      std::cout << "Unable to retreive expected kstats for caps::usage " << __LINE__ << std::endl;
+    if (KSTAT::retrieve_multiple_kstat (kc, "caps", "usage",
+                                        values, names, zones)) {
+      std::cout << "Unable to retrieve expected kstats for caps::usage " << __LINE__ << std::endl;
     } else {
       for (size_t i = 0; i < names.size(); i++) {
         if (zones.at(i) == "global") {
@@ -238,9 +241,9 @@ int main (int argc, char **argv) {
      * ones
      */
     for (size_t i=0; i<NET::size; i++) {
-      if (KSTAT::retreive_multiple_kstat (kc, NET::modl[i], NET::stat[i],
-                                          &values, &names, &zones)) {
-        std::cout << "Unable to retreive expected kstat for " << NET::modl[i] << " " <<
+      if (KSTAT::retrieve_multiple_kstat (kc, NET::modl[i], NET::stat[i],
+                                          values, names, zones)) {
+        std::cout << "Unable to retrieve expected kstat for " << NET::modl[i] << " " <<
           NET::stat[i] << __LINE__ << std::endl;
       } else {
         for (size_t j=0; j<values.size(); j++) {
@@ -262,9 +265,13 @@ int main (int argc, char **argv) {
         GZ_name << "sd" << instance;
         std::string GZ_name_str = GZ_name.str();
         if (DISK::GZ_modl[i]=="sderr") GZ_name << ",err";
-        if (KSTAT::retreive_kstat (kc, DISK::GZ_modl[i], GZ_name.str(),
-                                   DISK::GZ_stat[i], -1, &value)) {
-          std::cout << "Unable to retreive expected GZ kstat for " <<
+        if (KSTAT::retrieve_kstat (kc,
+				   DISK::GZ_modl[i],
+				   GZ_name.str(),
+                                   DISK::GZ_stat[i],
+				   -1,
+				   value)) {
+          std::cout << "Unable to retrieve expected GZ kstat for " <<
             DISK::GZ_modl[i] << " " << " " << DISK::GZ_stat[i] <<
             "server.cpp:" << __LINE__ << std::endl;
         } else {
@@ -273,9 +280,9 @@ int main (int argc, char **argv) {
       }
     }
     for (size_t i=0; i<DISK::size; i++) {
-      if (KSTAT::retreive_multiple_kstat (kc, DISK::modl[i], DISK::stat[i],
-                                          &values, &names, &zones)) {
-        std::cout << "Unable to retreive expected kstat for " << DISK::modl[i] << " " <<
+      if (KSTAT::retrieve_multiple_kstat (kc, DISK::modl[i], DISK::stat[i],
+                                          values, names, zones)) {
+        std::cout << "Unable to retrieve expected kstat for " << DISK::modl[i] << " " <<
           DISK::stat[i] << " server.cpp:" << __LINE__ << std::endl;
       } else {
         for (size_t j=0; j<values.size(); j++) {

@@ -5,3 +5,5 @@ tachyon-agent.tar.gz
 tachyon-agent
 pckt.pb.cc
 pckt.pb.h
+*.a
+*.o

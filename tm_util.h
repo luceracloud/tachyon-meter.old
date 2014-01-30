@@ -6,36 +6,42 @@
  *  EDITED:   7 AUG 2013
  */
 
+#ifndef _tm_util_h_
+#define _tm_util_h_
+
+#include <iostream>
+
 namespace UTIL {
 
   /* Colors */
-  void black () {
+  inline void black () {
     std::cout << "\033[30m";
   }
-  void red () {
+  inline void red () {
     std::cout << "\033[31m";
   }
-  void green () {
+  inline void green () {
     std::cout << "\033[32m";
   }
-  void blue () {
+  inline void blue () {
     std::cout << "\033[34m";
   }
-  void purple () {
+  inline void purple () {
     std::cout << "\033[35m";
   }
-  void cyan () {
+  inline void cyan () {
     std::cout << "\033[36m";
   }
-  void yellow () {
+  inline void yellow () {
     std::cout << "\033[33m";
   }
-  void white () {
+  inline void white () {
     std::cout << "\033[37m";
   }
-  void clear () {
+  inline void clear () {
     std::cout << "\033[m";
   }
 
 }
 
+#endif
