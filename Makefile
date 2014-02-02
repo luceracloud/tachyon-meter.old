@@ -3,6 +3,7 @@
 #
 
 # Libraries
+CXXFLAGS=-g -O2
 LDFLAGS=-ldtrace -lzmq -lkstat -lprotobuf
 INCLUDE=-I/opt/local/include
 LDFLAGS_LCL=$(LDFLAGS) -L/opt/local/lib/amd64 -L/opt/local/lib

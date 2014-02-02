@@ -311,11 +311,14 @@ int main (int argc, char **argv) {
      *  Debug print / send packets
      */
     if (VERBOSE) {
-      for (size_t i=0; i<ZoneData.size(); i++) {
+      for (std::map <size_t, std::string>::iterator iter = ZoneIndices.begin(); iter != ZoneIndices.end(); iter++) {
         UTIL::blue();
         std::cout << std::endl << "BEGIN Zone Packet:" << std::endl;
         UTIL::clear();
-        ZoneData.at(ZoneIndices.at(i))->print_zone();
+	std::map <std::string, Zone *>::iterator zit = ZoneData.find(iter->second);
+	if (zit != ZoneData.end()) {
+	  zit->second->print_zone();
+	}
       }
     }
 
