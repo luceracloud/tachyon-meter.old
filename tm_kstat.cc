@@ -1,280 +1,182 @@
-/*
- *  kstat.hpp
- *
- *   Includes a nice library of functions
- *   that allow easy interface with libkstat
- *   from a C++ program.
- *
- *   CREATED:   5 AUG 2013
- *   EDITED:    8 AUG 2013
- */
-
-#include <string.h>
+#include <sstream>
+#include <unistd.h>
+#include <netdb.h>
 #include "tm_kstat.h"
-#include "tm_util.h"
+#include "pckt.pb.h"
+#include "tm_curl.h"
 
-extern bool VERBOSE;
+int tm_kstat::_errno = 0;
+tm_curl* tm_kstat::_curl = 0;
+kstat_ctl_t* tm_kstat::_kc = 0;
+std::string tm_kstat::_hostname;
 
-namespace KSTAT {
+void tm_kstat::init(const char* nsq_url) {
 
-  /*
-   * Useful function to translate from the
-   * ambiguous kstat data form to a uint64_t
-   * no matter what (or return 0).
-   */
-  uint64_t translate_to_ui64 (kstat_named_t *knp) {
+  char hostname[NI_MAXHOST];
+  gethostname(hostname, NI_MAXHOST);
+  _hostname = hostname;
+  
+  _kc = kstat_open();
 
-    switch (knp->data_type) {
-    case KSTAT_DATA_CHAR:
-      UTIL::yellow();
-      std::cout << "Encountered char, unable to return (expected)." << std::endl;
-      UTIL::clear();
-      return (uint64_t)0;
-    case KSTAT_DATA_INT32:
-      return (uint64_t)knp->value.i32;
-    case KSTAT_DATA_UINT32:
-      return (uint64_t)knp->value.ui32;
-    case KSTAT_DATA_INT64:
-      return (uint64_t)knp->value.i64;
-    case KSTAT_DATA_UINT64:
-      return (uint64_t)knp->value.ui64;
-    case KSTAT_DATA_STRING:
-      if (VERBOSE) {
-	UTIL::yellow();
-	std::cout << "Encounted string, unable to return (expected)." << std::endl;
-	UTIL::clear();
-      }
-      return 0;
-    default:
-      // We should never end up in here
-      UTIL::yellow();
-      std::cout << "Something rather peculiar happened @kstat.hpp:" << __LINE__ << std::endl;
-      std::cout << "Return type: " << knp->data_type << std::endl;
-      UTIL::clear();
-      break;
-    }
-
-    return 0;
+  if (_kc != 0 && (_errno != 0 && _errno != 12)) {  // 12 is nomem and is expected behaviour
+    _errno = errno;
+    throw _errno;
   }
 
-  /*
-   * Returns a single statistic value
-   * from kstat.
-   */
-  int retrieve_kstat (kstat_ctl_t *kc,
-		      const std::string& module,
-		      const std::string& name,
-		      const std::string& statistic,
-		      int instance,
-		      uint64_t& value) {
+  _curl = new tm_curl(nsq_url);
+}
 
-    kstat_t         *ksp;
+void tm_kstat::parse(const std::string& config, char delim) {
 
-    if (VERBOSE) {
-      std::cout << "KSTAT " << module << " " << name << " " << statistic << " " <<
-	instance << std::endl;
-    }
+  std::vector<std::string> el;
+  int mark = 0, point;
 
-    /* Allow for unspecific queries */
-    const char* mod = (module == "NULL")  ? "": module.c_str();
-    const char* nm = (name == "NULL") ? "": name.c_str();
-    const char* stat = (statistic == "NULL") ? "": statistic.c_str();
+  while ((point = config.find(delim, mark)) != std::string::npos) {
+    el.push_back(config.substr(mark, point - mark));
+    mark = point+1;
+  }
+  el.push_back(config.substr(mark, config.size() - mark));
 
-    ksp = kstat_lookup (kc, (char*)mod, instance, (char*)nm);
-    if (ksp == NULL) {
-      std::cout << "Unable to retrieve expected kstat " << module << " " <<
-	name << " " << statistic << " " << instance << std::endl;
-      std::cout << " @kstat.hpp:" << __LINE__ << std::endl;
+  if (el.size() != 4) {
+    std::cerr << "misconfigured " << config << " should have four elements" << std::endl;
+  } else {
+    _module = el[0];
+    _zone = el[1];
+    _name = el[2];
+    _statistic = el[3];
+  }
+}
 
-      return 1;
-    }
+kstat_t* tm_kstat::lookup() {
+  kstat_t* ksp = 0;
+  errno = 0;
+  int stat = 0;
+  if (!_module.empty())
+    stat |= 1;
+  if (!_name.empty())
+    stat |= 2;
+  if (!_statistic.empty())
+    stat |= 4;
+  if (!_zone.empty())
+    stat |= 8;
 
-    /* We either deal with NAMED_TYPE or IO_TYPE, and each requires a different
-     * method for dealing with the data.
-     */
-    if (ksp->ks_type == KSTAT_TYPE_NAMED) {
+  if (stat == 1 || stat == 5)
+    ksp = lookup_m(*this);
+  else if (stat == 2)
+    ksp = lookup_n(*this);
+  else if (stat == 3)
+    ksp = lookup_mn(*this);
+  else if (stat == 7)
+    ksp = lookup_mns(*this);
+  else if (stat == 11)
+    ksp = lookup_mnz(*this);
+  else
+    std::cout << "Can't handle combo of inputs: "
+	      << _module << ":" << _zone << ":" << _name << ":" << _statistic
+	      << std::endl;
+  
+  if (ksp == NULL) {
+    _errno = errno;
+    throw _errno;
+  }
+  return ksp;
+}
 
-      kstat_named_t *knp;   // NAMED stat data structure
-      kstat_read (kc, ksp, NULL);
-      knp = (kstat_named_t *)kstat_data_lookup (ksp, (char*)stat);
-      if (knp == NULL) {
-	std::cout << "Unable to retrieve expected kstat_named " << mod << " " <<
-	  name << " " << stat << " " << instance << "kstat.hpp:" << __LINE__ << std::endl;
-	return 3;
-      }
+void tm_kstat::update() {
+  kid_t kc = kstat_chain_update(_kc);
+  if (kc == -1) {
+    _errno = errno;
+    throw _errno;
+  }
+}
 
-      /* Return data based on type */
-      switch (knp->data_type) {
-      case KSTAT_DATA_INT32:
-	value = (uint64_t)knp->value.i32;
-	break;
-      case KSTAT_DATA_UINT32:
-	value = (uint64_t)knp->value.ui32;
-	break;
-      case KSTAT_DATA_INT64:
-	value = (uint64_t)knp->value.i64;
-	break;
-      case KSTAT_DATA_UINT64:
-	value = knp->value.ui64;
-	break;
-      default:
-	// We should never end up in here
-	UTIL::red();
-	std::cout << "Something rather peculiar happened." << std::endl;
-	std::cout << " @kstat.hpp:" << __LINE__ << std::endl;
-	UTIL::clear();
-	break;
-      }
-    } else if (ksp->ks_type == KSTAT_TYPE_IO) {
+/* Fetch statistic from kernel, send */
+void tm_kstat::send_value() {
+  kstat_t *kp;
 
-      kstat_io_t kio;   // IO stat data structure
-      kstat_read (kc, ksp, &kio);
+  while (!_curl->good()) {
+    _curl->init();
+    usleep(5000000);
+  }
+  if ((kp = lookup()) != NULL) {
+    if (kstat_read(_kc, kp, NULL) >= 0) {
 
-      if (&kio == NULL) {
-	UTIL::yellow();
-	std::cout << "Requested kstat (IO) returned NULL for instance" << std::endl;
-	UTIL::clear();
-      }
-      
-      if (statistic == "nread") {
-	value = (uint64_t)kio.nread;
-      } else if (statistic == "nwritten") {
-	value = (uint64_t)kio.nwritten;
-      } else if (statistic == "reads") {
-	value = (uint64_t)kio.reads;
-      } else if (statistic == "writes") {
-	value = (uint64_t)kio.writes;
-      } else if (statistic == "rtime") {
-	value = (uint64_t)kio.rtime;
-      } else if (statistic == "wtime") {
-	value = (uint64_t)kio.wtime;
-      } else if (statistic == "rlentime") {
-	value = (uint64_t)kio.rlentime;
-      } else if (statistic == "wlentime") {
-	value = (uint64_t)kio.wlentime;
+      kstat_named_t *kstatFields = KSTAT_NAMED_PTR(kp);
+      if (kp->ks_type ==  KSTAT_TYPE_NAMED) {
+	  for (int i=0; i<kp->ks_ndata; i++) {
+	    if (kstatFields[i].name == _statistic) {
+	      if (_curl->good()) {
+		_curl->post(kp->ks_snaptime, _hostname.c_str(),
+			    kp->ks_module, kp->ks_instance, kp->ks_name,
+			    kp->ks_type,  &kstatFields[i]);
+	      }
+	    }
+	  }
+      } else if (kp->ks_type == KSTAT_TYPE_IO) {
+	do {
+	  for (int i=0; i<kp->ks_ndata; i++) {
+	    send_value_io(kp, KSTAT_IO_PTR(kp));
+	  }
+	} while ((kp->ks_next->ks_type == KSTAT_TYPE_IO &&
+		  (kp = kp->ks_next)));
       } else {
-	UTIL::yellow();
-	std::cout << "Unrecognzied statistic for IO kstat.hpp:" << __LINE__ << std::endl;
-	UTIL::clear();
+	std::cout << "Unsupported ks_type = " << kp->ks_type << std::endl;
       }
-    } else {
-      UTIL::yellow();
-      std::cout << "Unexpected KSTAT type, instead returned type: " << ksp->ks_type << std::endl;
-      UTIL::clear();
-      return 2;
     }
-
-    return 0;
   }
+}
 
-  /*
-   * Allows the return of multiple values
-   * in a vector. Works with "named" kstat
-   * type.
-   */
-  int retrieve_multiple_kstat (kstat_ctl_t *kc,
-			       const std::string& module,
-			       const std::string& statistic,
-			       std::vector<uint64_t>& values,
-			       std::vector<std::string>& names,
-			       std::vector<std::string>& zones) {
-    /* Init */
-    names.clear();
-    values.clear();
-    zones.clear();
-    kstat_t         *ksp;
-
-    ksp = kstat_lookup (kc, (char *)module.c_str(), -1, NULL);
-    if (ksp == NULL) {
-      UTIL::red();
-      std::cout << "Initial kstat lookup failed @kstat.hpp:" << __LINE__ << std::endl;
-      UTIL::clear();
-      return 1;
-    }
-
-    /* We return either NAMED_TYPE or IO_TYPE, depending on ks_type */
-    if (ksp->ks_type == KSTAT_TYPE_NAMED) {
-      kstat_named_t   *knp;   // NAMED stat data structure
-      while (ksp != NULL) {
-	if (ksp->ks_type != KSTAT_TYPE_NAMED) {
-	  ksp = kstat_lookup ((kstat_ctl_t *)(ksp->ks_next), (char *)module.c_str(), -1, NULL);
-	  continue;
-	}
-	kstat_read (kc, ksp, NULL);
-	knp = (kstat_named_t *)kstat_data_lookup (ksp, (char *)statistic.c_str());
-	if (knp == NULL) {
-	  UTIL::red();
-	  std::cout << "Failed to resolve kstat statistic lookup @kstat.hpp:" << __LINE__ << std::endl;
-	  UTIL::clear();
-	  return 2;
-	}
-
-	if (VERBOSE) std::cout << "Retrieved kstat from " << ksp->ks_module << " : " << ksp->ks_name << std::endl;
-
-	names.push_back (std::string(ksp->ks_name));
-	values.push_back (KSTAT::translate_to_ui64 (knp));
-	{
-	  kstat_named_t *knp = (kstat_named_t *)kstat_data_lookup (ksp, (char *)"zonename");
-	  zones.push_back (std::string(KSTAT_NAMED_STR_PTR(knp)).substr(0,30));
-	}
-	ksp = kstat_lookup ((kstat_ctl_t *)(ksp->ks_next), (char *)module.c_str(), -1, NULL);
-      }
-    } else if (ksp->ks_type == KSTAT_TYPE_IO) {
-      while (ksp != NULL) {
-	if ((ksp->ks_type != KSTAT_TYPE_IO) || strcmp(ksp->ks_class, "disk")) {
-	  ksp = kstat_lookup ((kstat_ctl_t *)(ksp->ks_next), (char *)module.c_str(), -1, NULL);
-	  continue;
-	}
-
-	kstat_io_t kio;   // IO stat data structure
-	kstat_read (kc, ksp, &kio);
-
-	if (&kio == NULL) {
-	  UTIL::yellow();
-	  std::cout << "Requested kstat returned NULL for instance" << std::endl;
-	  UTIL::clear();
-	}
-
-	if (statistic == "nread") {
-	  values.push_back (kio.nread);
-
-	} else if (statistic == "nwritten") {
-	  values.push_back (kio.nwritten);
-	} else if (statistic == "reads") {
-	  values.push_back (kio.reads);
-	} else if (statistic == "writes") {
-	  values.push_back (kio.writes);
-	} else if (statistic == "rtime") {
-	  values.push_back (kio.rtime);
-	} else if (statistic == "wtime") {
-	  values.push_back (kio.wtime);
-	} else if (statistic == "rlentime") {
-	  values.push_back (kio.rlentime);
-	} else if (statistic == "wlentime") {
-	  values.push_back (kio.wlentime);
-	} else {
-	  UTIL::yellow();
-	  std::cout << "Unrecognzied statistic for IO kstat.hpp:" << __LINE__ << std::endl;
-	  UTIL::clear();
-	}
-
-	names.push_back (ksp->ks_name);
-
-	{
-	  kstat_named_t *kk = (kstat_named_t *)kstat_data_lookup (ksp, (char *)"zonename");
-	  if (kk == NULL)  zones.push_back (std::string ("global"));
-	  else zones.push_back (std::string (KSTAT_NAMED_STR_PTR(kk)).substr(0,30));
-	}
-
-	ksp = kstat_lookup ((kstat_ctl_t *)(ksp->ks_next), (char *)module.c_str(), -1, NULL);
-      }
-    } else {
-      /* We don't handle this type of KSTAT type */
-      UTIL::red();
-      std::cout << "Irregular KSTAT TYPE" << std::endl;
-      UTIL::clear();
-    }
-
-    return 0;
+void tm_kstat::send_io(kstat_t* kp, const char* name, const uint64_t value) {
+  if (_curl->good()) {
+    _curl->post(kp->ks_snaptime, _hostname.c_str(),
+		kp->ks_module, kp->ks_instance, name, kp->ks_name, value);
   }
+}
+
+void tm_kstat::send_value_io(kstat_t *kp, const kstat_io_t* io) {
+
+  send_io(kp, "nread", io->nread);
+  send_io(kp, "nwritten", io->nwritten);
+  send_io(kp, "reads", io->reads);
+  send_io(kp, "writes", io->writes);
+  send_io(kp, "wtime", io->wtime);
+  send_io(kp, "wlentime", io->wlentime);
+  send_io(kp, "wlastupdate", io->wlastupdate);
+  send_io(kp, "rtime", io->rtime);
+  send_io(kp, "rlentime", io->rlentime);
+  send_io(kp, "rlastupdate", io->rlastupdate);
+  send_io(kp, "wcnt", io->wcnt);
+  send_io(kp, "rcnt", io->rcnt);
+
+}
+
+std::string tm_kstat::valueField(long l) {
+  std::ostringstream value;
+  value << l;
+  return value.str();
+}
+
+std::string tm_kstat::valueField(const kstat_named_t& f) {
+  std::ostringstream value;
+  switch (f.data_type)
+    {
+    case KSTAT_DATA_CHAR:
+      value << f.value.c;
+      break;
+    case KSTAT_DATA_INT32:
+      value << f.value.i32;
+      break;
+    case KSTAT_DATA_UINT32:
+      value << f.value.ui32;
+      break;
+    case KSTAT_DATA_INT64:
+      value << f.value.i64;
+      break;
+    case KSTAT_DATA_UINT64:
+      value << f.value.ui64;
+      break;
+    default:
+      value << -1;
+    }
+  return value.str();
 }
