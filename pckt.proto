@@ -10,13 +10,14 @@ package PBMSG;
 
 message Packet {
 
-  required uint64 time = 1;
-  required string host = 2;
-  optional string module = 3;
-  optional string zone = 4;
-  optional string statistic = 6;
-  optional string name = 5;
-  optional uint32 instance = 7;
+  required string host = 1;
+  optional string zone = 2;
+  required uint64 time = 3;
+  required string module = 4;
+  required uint32 instance = 5;
+  required string name = 6;
+  required string statistic = 7;
+  
   optional string value = 8;
   optional uint64 value_uint64 = 9;
   optional int64 value_int64 = 10;
