@@ -17,7 +17,7 @@ a packet is preceeded by its length (int) the packet contains, starting at time 
 
 description | time | name | module | class | instance | ks_name | value |
 types       | t    | s    | s      | s     | i        | s       | [isd] | d - double, i - int
-length      | int  | var  | var    | var   | int      | var     | var   |
+length      | 8    | var  | var    | var   | 4        | var     | var   |
 data        | 123  | sd   |        |       | 0        |         |       |
 
 Notes
