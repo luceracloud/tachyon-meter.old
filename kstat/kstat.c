@@ -365,7 +365,8 @@ usage(void)
 	    "kstat [ -Cjlpqx ] [ -T d|u ] [ -c class ]\n"
 	    "      [ module[:instance[:name[:statistic]]] ... ]\n"
 	    "      [ interval [ count ] ]\n"
-			"      x - is an extension that send output to nsq servers (RESTful)"));
+			"      [ -x http://nsqurl:port/put?topic=tachyon $parms [interval [ count ]]]\n"
+			"      x - is an extension that sends output to nsq servers (RESTful)\n"));
 	
 }
 
@@ -862,6 +863,9 @@ ks_instance_print_nsq(ks_instance_t *ksi, ks_nvpair_t *nvpair)
 								ksi->ks_instance);
 
 	ks_value_print_buf(nvpair, buffer+len, &len);
+	memmove(buffer+sizeof(int), buffer, len); // shift bytes
+	len += sizeof(int);
+	*(int*)buffer = len;
 	tm_curl_post(buffer, len);
 }
 
