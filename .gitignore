@@ -7,3 +7,4 @@ pckt.pb.cc
 pckt.pb.h
 *.a
 *.o
+kstat/kstat
