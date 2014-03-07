@@ -8,3 +8,4 @@ pckt.pb.h
 *.a
 *.o
 kstat/kstat
+core
