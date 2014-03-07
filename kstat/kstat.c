@@ -768,7 +768,7 @@ default:
 */
 
 static int
-cp_s_to_buf(char* dest, void* src, uint32_t len)
+cp_s_to_buf(char* dest, const char* src, uint32_t len)
 {
   if (src && len) {
     *(uint32_t*)dest = htonl(len);
@@ -788,7 +788,7 @@ cp_i_to_buf(char* dest, uint64_t val)
 }
 
 static int
-cp_val_s_to_buf(char* dest, void* src, uint32_t len)
+cp_val_s_to_buf(char* dest, const char* src, uint32_t len)
 {
   *dest = 's';
   dest++;
@@ -817,12 +817,12 @@ packet_fields(char* buf, uint32_t* len,
 								 const char* class,
 								 int instance) {
 uint32_t pos = *len;
-pos += cp_s_to_buf(buf+pos, (void*)hostname, strlen(hostname));
-pos += cp_s_to_buf(buf+pos, (void*)zone,     strlen(zone));
+pos += cp_s_to_buf(buf+pos, hostname, strlen(hostname));
+pos += cp_s_to_buf(buf+pos, zone,     strlen(zone));
 pos += cp_i_to_buf(buf+pos, snap_time);
-pos += cp_s_to_buf(buf+pos, (void*)name,    strlen(name));
-pos += cp_s_to_buf(buf+pos, (void*)module,  strlen(module));
-pos += cp_s_to_buf(buf+pos, (void*)class,   strlen(class));
+pos += cp_s_to_buf(buf+pos, name,    strlen(name));
+pos += cp_s_to_buf(buf+pos, module,  strlen(module));
+pos += cp_s_to_buf(buf+pos, class,   strlen(class));
 pos += cp_i_to_buf(buf+pos, instance);
 *len = pos;
 return buf;
@@ -831,6 +831,9 @@ return buf;
 static void
 ks_value_print_buf(ks_nvpair_t *nvpair, char* buf, uint32_t* len)
 {
+uint32_t name_len = cp_s_to_buf(buf, nvpair->name, strlen(nvpair->name));
+*len += name_len;
+buf += name_len;
 switch (nvpair->data_type) {
 case KSTAT_DATA_INT32:
 	*len += cp_val_i_to_buf(buf, (uint64_t) nvpair->value.i32);
