@@ -694,14 +694,14 @@ for (kp = kc->kc_chain; kp != NULL; kp = kp->ks_next) {
 	list_insert_before(&instances_list, tmp, ksi);
 
 	/* Read the actual statistics */
-  id = kstat_read(kc, kp, NULL);
+	id = kstat_read(kc, kp, NULL);
 	if (id == -1) {
 #ifdef REPORT_UNKNOWN
-  	perror("kstat_read");
+		perror("kstat_read");
 #endif
 		continue;
 	}
-   
+
 	switch (kp->ks_type) {
 	case KSTAT_TYPE_RAW:
 		save_raw(kp, ksi);
@@ -765,27 +765,45 @@ default:
 /*
 * put value in a buffer preceeded by its length
 */
+
 static int
-cp_to_buf(char* dest, void* src, char type, uint32_t len)
+cp_s_to_buf(char* dest, void* src, uint32_t len)
 {
   if (src && len) {
-  	char* pos = dest;
-    switch (type) {
-    case 0:
-    break;
-    case 1: 
-  	  *(uint32_t*)pos = htonl(len);
-    	pos = pos + sizeof(uint32_t);
-    default:
-    		 *pos = type;
-  	  	 pos++;
-	  } 
-  	memcpy(pos, src, len);
-  	return (pos - dest)+len;
+    *(uint32_t*)dest = htonl(len);
+    memcpy(dest + sizeof(uint32_t), src, len);
+    return sizeof(uint32_t)+len;
   } else {
-  	*(uint32_t*)dest = htonl(0);
-  	return sizeof(uint32_t);
+    *(uint32_t*)dest = htonl(0);
+    return sizeof(uint32_t);
   }
+}
+
+static int
+cp_i_to_buf(char* dest, uint64_t val)
+{
+  *(uint64_t*)dest = htonll(val);
+  return sizeof(uint64_t);
+}
+
+static int
+cp_val_s_to_buf(char* dest, void* src, uint32_t len)
+{
+  *dest = 's';
+  dest++;
+  if (src && len) {
+    memcpy(dest, src, len);
+    return len+1;
+  } else {
+    return 1;
+  }
+}
+static int
+cp_val_i_to_buf(char* dest, uint64_t val)
+{
+  *dest = 'i';
+  *(uint64_t*)(dest+1) = htonll(val);
+  return sizeof(uint64_t) + 1;
 }
 
 static char*
@@ -797,17 +815,14 @@ packet_fields(char* buf, uint32_t* len,
 								 const char* module,
 								 const char* class,
 								 int instance) {
-
-uint64_t nbo_snap_time = htonll(snap_time);
-uint32_t nbo_instane = htonl(instance);
 uint32_t pos = *len;
-pos += cp_to_buf(buf+pos, (void*)hostname,       1, strlen(hostname));
-pos += cp_to_buf(buf+pos, (void*)zone,           1, strlen(zone));
-pos += cp_to_buf(buf+pos, (void*)&nbo_snap_time, 0, sizeof(uint64_t));
-pos += cp_to_buf(buf+pos, (void*)name,           1, strlen(name));
-pos += cp_to_buf(buf+pos, (void*)module,         1, strlen(module));
-pos += cp_to_buf(buf+pos, (void*)class,          1, strlen(class));
-pos += cp_to_buf(buf+pos, (void*)&nbo_instane,   0, sizeof(uint32_t));
+pos += cp_s_to_buf(buf+pos, (void*)hostname, strlen(hostname));
+pos += cp_s_to_buf(buf+pos, (void*)zone,     strlen(zone));
+pos += cp_i_to_buf(buf+pos, snap_time);
+pos += cp_s_to_buf(buf+pos, (void*)name,    strlen(name));
+pos += cp_s_to_buf(buf+pos, (void*)module,  strlen(module));
+pos += cp_s_to_buf(buf+pos, (void*)class,   strlen(class));
+pos += cp_i_to_buf(buf+pos, instance);
 *len = pos;
 return buf;
 }
@@ -815,30 +830,25 @@ return buf;
 static void
 ks_value_print_buf(ks_nvpair_t *nvpair, char* buf, uint32_t* len)
 {
-uint64_t nbo;
 switch (nvpair->data_type) {
 case KSTAT_DATA_INT32:
-	nbo = htonll((uint64_t) nvpair->value.i32);  
-	*len += cp_to_buf(buf, &nbo, 'i', sizeof(uint64_t));
+	*len += cp_val_i_to_buf(buf, (uint64_t) nvpair->value.i32);
 	break;
 case KSTAT_DATA_UINT32:
-	nbo = htonll((uint64_t) nvpair->value.ui32);  
-	*len += cp_to_buf(buf, &nbo, 'i', sizeof(uint64_t));
+	*len += cp_val_i_to_buf(buf, (uint64_t) nvpair->value.ui32);
 	break;
 case KSTAT_DATA_INT64:
-	nbo = htonll((uint64_t) nvpair->value.i64);  
-	*len += cp_to_buf(buf, &nbo, 'i', sizeof(uint64_t));
+	*len += cp_val_i_to_buf(buf, (uint64_t) nvpair->value.i64);
 	break;
 case KSTAT_DATA_HRTIME:
 case KSTAT_DATA_UINT64:
-	nbo = htonll((uint64_t) nvpair->value.ui64);  
-	*len += cp_to_buf(buf, &nbo, 'i', sizeof(uint64_t));
+	*len += cp_val_i_to_buf(buf, (uint64_t) nvpair->value.ui64);
 	break;
 	case KSTAT_DATA_CHAR:
-		*len += cp_to_buf(buf, nvpair->value.c, 's', strlen(nvpair->value.c));
+		*len += cp_val_s_to_buf(buf, nvpair->value.c, strlen(nvpair->value.c));
 		break;
 	case KSTAT_DATA_STRING:
-		*len += cp_to_buf(buf, KSTAT_NAMED_STR_PTR(nvpair), 's', KSTAT_NAMED_STR_BUFLEN(nvpair));
+		*len += cp_val_s_to_buf(buf, KSTAT_NAMED_STR_PTR(nvpair), KSTAT_NAMED_STR_BUFLEN(nvpair));
 		break;
 	default:
 		assert(B_FALSE);
@@ -882,10 +892,10 @@ ks_instance_print(ks_instance_t *ksi, ks_nvpair_t *nvpair)
 static void
 ks_instance_print_nsq(ks_instance_t *ksi, ks_nvpair_t *nvpair)
 {
-	static char buffer[512];
+	static char buffer[2048];
 	uint32_t len;
   // We elave the first uint32_t free to add the size later
-	packet_fields(buffer+sizeof(uint32_t), &len,
+	packet_fields(buffer, &len,
                 tachyon_host,
                 ksi->ks_zone,
 								ksi->ks_snaptime,
@@ -895,7 +905,6 @@ ks_instance_print_nsq(ks_instance_t *ksi, ks_nvpair_t *nvpair)
 								ksi->ks_instance);
 
 	ks_value_print_buf(nvpair, buffer+len, &len);
-	*(uint32_t*)buffer = len;
 	tm_curl_post(buffer, len);
 }
 

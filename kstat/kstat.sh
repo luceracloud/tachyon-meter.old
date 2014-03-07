@@ -43,5 +43,4 @@ fi
 # same thing but run forever
 #./kstat -x $parms 1
 
-echo "executing ${cmd}"
 eval "${cmd}"
