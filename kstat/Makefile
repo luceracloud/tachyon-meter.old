@@ -34,7 +34,7 @@ LIBCURL = ../curl/libtmcurl.a
 #include $(SRC)/cmd/stat/Makefile.stat
 
 LDLIBS += -lavl -lcmdutils -ldevinfo -lgen -lkstat
-CFLAGS += $(CCVERBOSE) -I${STATCOMMONDIR}
+CFLAGS += $(CCVERBOSE) -I${STATCOMMONDIR} -Wall
 CERRWARN += -_gcc=-Wno-uninitialized
 CERRWARN += -_gcc=-Wno-switch
 CERRWARN += -_gcc=-Wno-parentheses
@@ -54,7 +54,7 @@ all: $(PROG)
 install: all $(ROOTPROG)
 
 kstat: kstat.c $(LIBCOMMON) $(LIBCURL)
-	cc -g -o kstat kstat.c -L./common -L../curl -lcommon -ltmcurl -lcurl -lkstat -ldevinfo -lcmdutils -lavl -lgen
+	cc -Wall -g -o kstat kstat.c -L./common -L../curl -lcommon -ltmcurl -lcurl -lkstat -ldevinfo -lcmdutils -lavl -lgen
 
 $(LIBCOMMON): 
 	cd common; make

@@ -173,6 +173,7 @@ typedef union ks_value {
 
 typedef struct ks_instance {
 	list_node_t	ks_next;
+	char		ks_zone[KSTAT_STRLEN];
 	char		ks_name[KSTAT_STRLEN];
 	char		ks_module[KSTAT_STRLEN];
 	char		ks_class[KSTAT_STRLEN];

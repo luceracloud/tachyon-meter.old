@@ -1,45 +1,45 @@
 /*
- * CDDL HEADER START
- *
- * The contents of this file are subject to the terms of the
- * Common Development and Distribution License (the "License").
- * You may not use this file except in compliance with the License.
- *
- * You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
- * or http://www.opensolaris.org/os/licensing.
- * See the License for the specific language governing permissions
- * and limitations under the License.
- *
- * When distributing Covered Code, include this CDDL HEADER in each
- * file and include the License file at usr/src/OPENSOLARIS.LICENSE.
- * If applicable, add the following below this CDDL HEADER, with the
- * fields enclosed by brackets "[]" replaced with your own identifying
- * information: Portions Copyright [yyyy] [name of copyright owner]
- *
- * CDDL HEADER END
- */
+* CDDL HEADER START
+*
+* The contents of this file are subject to the terms of the
+* Common Development and Distribution License (the "License").
+* You may not use this file except in compliance with the License.
+*
+* You can obtain a copy of the license at usr/src/OPENSOLARIS.LICENSE
+* or http://www.opensolaris.org/os/licensing.
+* See the License for the specific language governing permissions
+* and limitations under the License.
+*
+* When distributing Covered Code, include this CDDL HEADER in each
+* file and include the License file at usr/src/OPENSOLARIS.LICENSE.
+* If applicable, add the following below this CDDL HEADER, with the
+* fields enclosed by brackets "[]" replaced with your own identifying
+* information: Portions Copyright [yyyy] [name of copyright owner]
+*
+* CDDL HEADER END
+*/
 
 /*
- * Copyright (c) 1999, 2010, Oracle and/or its affiliates. All rights reserved.
- * Copyright (c) 2013 David Hoeppner. All rights reserved.
- * Copyright 2013 Nexenta Systems, Inc.  All rights reserved.
- * Copyright (c) 2013, Joyent, Inc. All rights reserved.
- */
+* Copyright (c) 1999, 2010, Oracle and/or its affiliates. All rights reserved.
+* Copyright (c) 2013 David Hoeppner. All rights reserved.
+* Copyright 2013 Nexenta Systems, Inc.  All rights reserved.
+* Copyright (c) 2013, Joyent, Inc. All rights reserved.
+*/
 
 /*
- * Display kernel statistics
- *
- * This is a reimplementation of the perl kstat command originally found
- * under usr/src/cmd/kstat/kstat.pl
- *
- * Incompatibilities:
- *	- perl regular expressions replaced with extended REs bracketed by '/'
- *
- * Flags added:
- *	-C	similar to the -p option but value is separated by a colon
- *	-h	display help
- *	-j	json format
- */
+* Display kernel statistics
+*
+* This is a reimplementation of the perl kstat command originally found
+* under usr/src/cmd/kstat/kstat.pl
+*
+* Incompatibilities:
+*	- perl regular expressions replaced with extended REs bracketed by '/'
+*
+* Flags added:
+*	-C	similar to the -p option but value is separated by a colon
+*	-h	display help
+*	-j	json format
+*/
 
 #include <assert.h>
 #include <ctype.h>
@@ -80,7 +80,9 @@ static boolean_t g_lflg = B_FALSE;
 static boolean_t g_pflg = B_FALSE;
 static boolean_t g_nflg = B_FALSE;  // added for tachyon
 static boolean_t g_qflg = B_FALSE;
-static ks_pattern_t	g_ks_class = {"*", 0};
+static boolean_t g_host = B_FALSE;
+static boolean_t g_url = B_FALSE;
+static ks_pattern_t	g_ks_class = {"*", {0}};
 
 /* Return zero if a selector did match */
 static int	g_matched = 1;
@@ -89,727 +91,754 @@ static int	g_matched = 1;
 static list_t	instances_list;
 static list_t	selector_list;
 static char* tachyon_url;
+static char* tachyon_host;
 
 int
 main(int argc, char **argv)
 {
-	ks_selector_t	*nselector;
-	ks_selector_t	*uselector;
-	kstat_ctl_t	*kc;
-	hrtime_t	start_n;
-	hrtime_t	period_n;
-	boolean_t	errflg = B_FALSE;
-	boolean_t	nselflg = B_FALSE;
-	boolean_t	uselflg = B_FALSE;
-	char		*q;
-	int		count = 1;
-	int		infinite_cycles = 0;
-	int		interval = 0;
-	int		n = 0;
-	int		c, m, tmp;
+ks_selector_t	*nselector;
+ks_selector_t	*uselector;
+kstat_ctl_t	*kc;
+hrtime_t	start_n;
+hrtime_t	period_n;
+boolean_t	errflg = B_FALSE;
+boolean_t	nselflg = B_FALSE;
+boolean_t	uselflg = B_FALSE;
+char		*q;
+int		count = 1;
+int		infinite_cycles = 0;
+int		interval = 0;
+int		n = 0;
+int		c, m, tmp;
 
-	(void) setlocale(LC_ALL, "");
+(void) setlocale(LC_ALL, "");
 #if !defined(TEXT_DOMAIN)		/* Should be defined by cc -D */
 #define	TEXT_DOMAIN "SYS_TEST"		/* Use this only if it wasn't */
 #endif
-	(void) textdomain(TEXT_DOMAIN);
+(void) textdomain(TEXT_DOMAIN);
 
-	/*
-	 * Create the selector list and a dummy default selector to match
-	 * everything. While we process the cmdline options we will add
-	 * selectors to this list.
-	 */
-	list_create(&selector_list, sizeof (ks_selector_t),
-	    offsetof(ks_selector_t, ks_next));
+/*
+ * Create the selector list and a dummy default selector to match
+ * everything. While we process the cmdline options we will add
+ * selectors to this list.
+ */
+list_create(&selector_list, sizeof (ks_selector_t),
+		offsetof(ks_selector_t, ks_next));
 
-	nselector = new_selector();
+nselector = new_selector();
 
-	/*
-	 * Parse named command line arguments.
-	 */
-	while ((c = getopt(argc, argv, "h?Cqjlpx:T:m:i:n:s:c:")) != EOF)
-		switch (c) {
-		case 'h':
-		case '?':
-			usage();
-			exit(0);
+/*
+ * Parse named command line arguments.
+ */
+while ((c = getopt(argc, argv, "h?Cqjlpx:H:T:m:i:n:s:c:")) != EOF)
+	switch (c) {
+	case 'h':
+	case '?':
+		usage();
+		exit(0);
+		break;
+	case 'C':
+		g_pflg = g_cflg = B_TRUE;
+		break;
+	case 'q':
+		g_qflg = B_TRUE;
+		break;
+	case 'j':
+		g_jflg = B_TRUE;
+		break;
+	case 'l':
+		g_pflg = g_lflg = B_TRUE;
+		break;
+	case 'H':
+		g_host = B_TRUE;
+		tachyon_host = (char *)ks_safe_strdup(optarg);
+		break;
+	case 'x':
+		g_url = g_pflg = g_nflg = B_TRUE;
+		tachyon_url = (char *)ks_safe_strdup(optarg);
+		break;
+	case 'p':
+		g_pflg = B_TRUE;
+		break;
+	case 'T':
+		switch (*optarg) {
+		case 'd':
+			g_timestamp_fmt = DDATE;
 			break;
-		case 'C':
-			g_pflg = g_cflg = B_TRUE;
-			break;
-		case 'q':
-			g_qflg = B_TRUE;
-			break;
-		case 'j':
-			g_jflg = B_TRUE;
-			break;
-		case 'l':
-			g_pflg = g_lflg = B_TRUE;
-			break;
-		case 'x':
-			g_pflg = g_nflg = B_TRUE;
-			tachyon_url = (char *)ks_safe_strdup(optarg);
-			break;
-		case 'p':
-			g_pflg = B_TRUE;
-			break;
-		case 'T':
-			switch (*optarg) {
-			case 'd':
-				g_timestamp_fmt = DDATE;
-				break;
-			case 'u':
-				g_timestamp_fmt = UDATE;
-				break;
-			default:
-				errflg = B_TRUE;
-			}
-			break;
-		case 'm':
-			nselflg = B_TRUE;
-			nselector->ks_module.pstr =
-			    (char *)ks_safe_strdup(optarg);
-			break;
-		case 'i':
-			nselflg = B_TRUE;
-			nselector->ks_instance.pstr =
-			    (char *)ks_safe_strdup(optarg);
-			break;
-		case 'n':
-			nselflg = B_TRUE;
-			nselector->ks_name.pstr =
-			    (char *)ks_safe_strdup(optarg);
-			break;
-		case 's':
-			nselflg = B_TRUE;
-			nselector->ks_statistic.pstr =
-			    (char *)ks_safe_strdup(optarg);
-			break;
-		case 'c':
-			g_ks_class.pstr =
-			    (char *)ks_safe_strdup(optarg);
+		case 'u':
+			g_timestamp_fmt = UDATE;
 			break;
 		default:
 			errflg = B_TRUE;
-			break;
 		}
-
-	if (g_qflg && (g_jflg || g_pflg || g_nflg)) {
-		(void) fprintf(stderr, gettext(
-		    "-q and -lpjn are mutually exclusive\n"));
+		break;
+	case 'm':
+		nselflg = B_TRUE;
+		nselector->ks_module.pstr =
+				(char *)ks_safe_strdup(optarg);
+		break;
+	case 'i':
+		nselflg = B_TRUE;
+		nselector->ks_instance.pstr =
+				(char *)ks_safe_strdup(optarg);
+		break;
+	case 'n':
+		nselflg = B_TRUE;
+		nselector->ks_name.pstr =
+				(char *)ks_safe_strdup(optarg);
+		break;
+	case 's':
+		nselflg = B_TRUE;
+		nselector->ks_statistic.pstr =
+				(char *)ks_safe_strdup(optarg);
+		break;
+	case 'c':
+		g_ks_class.pstr =
+				(char *)ks_safe_strdup(optarg);
+		break;
+	default:
 		errflg = B_TRUE;
+		break;
 	}
 
-	if (errflg) {
+if (g_qflg && (g_jflg || g_pflg || g_nflg)) {
+	(void) fprintf(stderr, gettext(
+			"-q and -lpjn are mutually exclusive\n"));
+	errflg = B_TRUE;
+}
+if (g_url ^ g_host) {
+	(void) fprintf(stderr, gettext(
+			"-H and -x must both be set.\n"));
+	errflg = B_TRUE;
+}
+
+if (errflg) {
+	usage();
+	exit(2);
+}
+
+argc -= optind;
+argv += optind;
+
+/*
+ * Consume the rest of the command line. Parsing the
+ * unnamed command line arguments.
+ */
+while (argc--) {
+	errno = 0;
+	tmp = strtoul(*argv, &q, 10);
+	if (tmp == ULONG_MAX && errno == ERANGE) {
+		if (n == 0) {
+			(void) fprintf(stderr, gettext(
+					"Interval is too large\n"));
+		} else if (n == 1) {
+			(void) fprintf(stderr, gettext(
+					"Count is too large\n"));
+		}
 		usage();
 		exit(2);
 	}
 
-	argc -= optind;
-	argv += optind;
-
-	/*
-	 * Consume the rest of the command line. Parsing the
-	 * unnamed command line arguments.
-	 */
-	while (argc--) {
-		errno = 0;
-		tmp = strtoul(*argv, &q, 10);
-		if (tmp == ULONG_MAX && errno == ERANGE) {
-			if (n == 0) {
-				(void) fprintf(stderr, gettext(
-				    "Interval is too large\n"));
-			} else if (n == 1) {
-				(void) fprintf(stderr, gettext(
-				    "Count is too large\n"));
-			}
-			usage();
-			exit(2);
-		}
-
-		if (errno != 0 || *q != '\0') {
-			m = 0;
-			uselector = new_selector();
-			while ((q = (char *)strsep(argv, ":")) != NULL) {
-				m++;
-				if (m > 4) {
-					free(uselector);
-					usage();
-					exit(2);
-				}
-
-				if (*q != '\0') {
-					switch (m) {
-					case 1:
-						uselector->ks_module.pstr =
-						    (char *)ks_safe_strdup(q);
-						break;
-					case 2:
-						uselector->ks_instance.pstr =
-						    (char *)ks_safe_strdup(q);
-						break;
-					case 3:
-						uselector->ks_name.pstr =
-						    (char *)ks_safe_strdup(q);
-						break;
-					case 4:
-						uselector->ks_statistic.pstr =
-						    (char *)ks_safe_strdup(q);
-						break;
-					default:
-						assert(B_FALSE);
-					}
-				}
-			}
-
-			uselflg = B_TRUE;
-			list_insert_tail(&selector_list, uselector);
-		} else {
-			if (tmp < 1) {
-				if (n == 0) {
-					(void) fprintf(stderr, gettext(
-					    "Interval must be an "
-					    "integer >= 1"));
-				} else if (n == 1) {
-					(void) fprintf(stderr, gettext(
-					    "Count must be an integer >= 1"));
-				}
+	if (errno != 0 || *q != '\0') {
+		m = 0;
+		uselector = new_selector();
+		while ((q = (char *)strsep(argv, ":")) != NULL) {
+			m++;
+			if (m > 4) {
+				free(uselector);
 				usage();
 				exit(2);
-			} else {
-				if (n == 0) {
-					interval = tmp;
-					count = -1;
-				} else if (n == 1) {
-					count = tmp;
-				} else {
-					usage();
-					exit(2);
+			}
+
+			if (*q != '\0') {
+				switch (m) {
+				case 1:
+					uselector->ks_module.pstr =
+							(char *)ks_safe_strdup(q);
+					break;
+				case 2:
+					uselector->ks_instance.pstr =
+							(char *)ks_safe_strdup(q);
+					break;
+				case 3:
+					uselector->ks_name.pstr =
+							(char *)ks_safe_strdup(q);
+					break;
+				case 4:
+					uselector->ks_statistic.pstr =
+							(char *)ks_safe_strdup(q);
+					break;
+				default:
+					assert(B_FALSE);
 				}
 			}
-			n++;
 		}
-		argv++;
-	}
 
-	/*
-	 * Check if we founded a named selector on the cmdline.
-	 */
-	if (uselflg) {
-		if (nselflg) {
-			(void) fprintf(stderr, gettext(
-			    "[module[:instance[:name[:statistic]]]] and "
-			    "-m -i -n -s are mutually exclusive"));
+		uselflg = B_TRUE;
+		list_insert_tail(&selector_list, uselector);
+	} else {
+		if (tmp < 1) {
+			if (n == 0) {
+				(void) fprintf(stderr, gettext(
+						"Interval must be an "
+						"integer >= 1"));
+			} else if (n == 1) {
+				(void) fprintf(stderr, gettext(
+						"Count must be an integer >= 1"));
+			}
 			usage();
 			exit(2);
 		} else {
-			free(nselector);
+			if (n == 0) {
+				interval = tmp;
+				count = -1;
+			} else if (n == 1) {
+				count = tmp;
+			} else {
+				usage();
+				exit(2);
+			}
 		}
-	} else {
-		list_insert_tail(&selector_list, nselector);
+		n++;
 	}
-
-	assert(!list_is_empty(&selector_list));
-
-	list_create(&instances_list, sizeof (ks_instance_t),
-	    offsetof(ks_instance_t, ks_next));
-
-	while ((kc = kstat_open()) == NULL) {
-		if (errno == EAGAIN) {
-			(void) poll(NULL, 0, 200);
-		} else {
-			perror("kstat_open");
-			exit(3);
-		}
-	}
-
-	if (count > 1) {
-		if (signal(SIGCONT, cont_handler) == SIG_ERR) {
-			(void) fprintf(stderr, gettext(
-			    "signal failed"));
-			exit(3);
-		}
-	}
-
-	period_n = (hrtime_t)interval * NANOSEC;
-	start_n = gethrtime();
-
-	while (count == -1 || count-- > 0) {
-		ks_instances_read(kc);
-		ks_instances_print();
-
-		if (interval && count) {
-			ks_sleep_until(&start_n, period_n, infinite_cycles,
-			    &caught_cont);
-			(void) kstat_chain_update(kc);
-			(void) putchar('\n');
-		}
-	}
-
-	(void) kstat_close(kc);
-
-	return (g_matched);
+	argv++;
 }
 
 /*
- * Print usage.
+ * Check if we founded a named selector on the cmdline.
  */
+if (uselflg) {
+	if (nselflg) {
+		(void) fprintf(stderr, gettext(
+				"[module[:instance[:name[:statistic]]]] and "
+				"-m -i -n -s are mutually exclusive"));
+		usage();
+		exit(2);
+	} else {
+		free(nselector);
+	}
+} else {
+	list_insert_tail(&selector_list, nselector);
+}
+
+assert(!list_is_empty(&selector_list));
+
+list_create(&instances_list, sizeof (ks_instance_t),
+		offsetof(ks_instance_t, ks_next));
+
+while ((kc = kstat_open()) == NULL) {
+	if (errno == EAGAIN) {
+		(void) poll(NULL, 0, 200);
+	} else {
+		perror("kstat_open");
+		exit(3);
+	}
+}
+
+if (count > 1) {
+	if (signal(SIGCONT, cont_handler) == SIG_ERR) {
+		(void) fprintf(stderr, gettext(
+				"signal failed"));
+		exit(3);
+	}
+}
+
+period_n = (hrtime_t)interval * NANOSEC;
+start_n = gethrtime();
+
+while (count == -1 || count-- > 0) {
+	ks_instances_read(kc);
+	ks_instances_print();
+
+	if (interval && count) {
+		ks_sleep_until(&start_n, period_n, infinite_cycles,
+				&caught_cont);
+		(void) kstat_chain_update(kc);
+		(void) putchar('\n');
+	}
+}
+
+(void) kstat_close(kc);
+
+return (g_matched);
+}
+
+/*
+* Print usage.
+*/
 static void
 usage(void)
 {
-	(void) fprintf(stderr, gettext(
-	    "Usage:\n"
-	    "kstat [ -Cjlpqx ] [ -T d|u ] [ -c class ]\n"
-	    "      [ -m module ] [ -i instance ] [ -n name ] [ -s statistic ]\n"
-	    "      [ interval [ count ] ]\n"
-	    "kstat [ -Cjlpqx ] [ -T d|u ] [ -c class ]\n"
-	    "      [ module[:instance[:name[:statistic]]] ... ]\n"
-	    "      [ interval [ count ] ]\n"
-			"      [ -x http://nsqurl:port/put?topic=tachyon $parms [interval [ count ]]]\n"
-			"      x - is an extension that sends output to nsq servers (RESTful)\n"));
-	
+(void) fprintf(stderr, gettext(
+		"Usage:\n"
+		"kstat [ -Cjlpqx ] [ -T d|u ] [ -c class ]\n"
+		"      [ -m module ] [ -i instance ] [ -n name ] [ -s statistic ]\n"
+		"      [ interval [ count ] ]\n"
+		"kstat [ -Cjlpqx ] [ -T d|u ] [ -c class ]\n"
+		"      [ -x http://nsqurl:port/put?topic=tachyon -H hostname]\n"
+		"      [ module[:instance[:name[:statistic]]] ... ]\n"
+		"      [ interval [ count ] ]\n"
+		"      x and H - is an extension that sends output to nsq servers (RESTful)\n"));
+
 }
 
 /*
- * Sort compare function.
- */
+* Sort compare function.
+*/
 static int
 compare_instances(ks_instance_t *l_arg, ks_instance_t *r_arg)
 {
-	int	rval;
+int	rval;
 
-	rval = strcasecmp(l_arg->ks_module, r_arg->ks_module);
-	if (rval == 0) {
-		if (l_arg->ks_instance == r_arg->ks_instance) {
-			return (strcasecmp(l_arg->ks_name, r_arg->ks_name));
-		} else if (l_arg->ks_instance < r_arg->ks_instance) {
-			return (-1);
-		} else {
-			return (1);
-		}
+rval = strcasecmp(l_arg->ks_module, r_arg->ks_module);
+if (rval == 0) {
+	if (l_arg->ks_instance == r_arg->ks_instance) {
+		return (strcasecmp(l_arg->ks_name, r_arg->ks_name));
+	} else if (l_arg->ks_instance < r_arg->ks_instance) {
+		return (-1);
 	} else {
-		return (rval);
+		return (1);
 	}
+} else {
+	return (rval);
+}
 }
 
 static char *
 ks_safe_strdup(char *str)
 {
-	char	*ret;
+char	*ret;
 
-	if (str == NULL) {
-		return (NULL);
+if (str == NULL) {
+	return (NULL);
+}
+
+while ((ret = strdup(str)) == NULL) {
+	if (errno == EAGAIN) {
+		(void) poll(NULL, 0, 200);
+	} else {
+		perror("strdup");
+		exit(3);
 	}
+}
 
-	while ((ret = strdup(str)) == NULL) {
-		if (errno == EAGAIN) {
-			(void) poll(NULL, 0, 200);
-		} else {
-			perror("strdup");
-			exit(3);
-		}
-	}
-
-	return (ret);
+return (ret);
 }
 
 static void
 ks_sleep_until(hrtime_t *wakeup, hrtime_t interval, int forever,
-    int *caught_cont)
+	int *caught_cont)
 {
-	hrtime_t	now, pause, pause_left;
-	struct timespec	pause_tv;
-	int		status;
+hrtime_t	now, pause, pause_left;
+struct timespec	pause_tv;
+int		status;
 
-	now = gethrtime();
-	pause = *wakeup + interval - now;
+now = gethrtime();
+pause = *wakeup + interval - now;
 
-	if (pause <= 0 || pause < (interval / 4)) {
-		if (forever || *caught_cont) {
-			*wakeup = now + interval;
-			pause = interval;
-		} else {
-			pause = interval / 2;
-			*wakeup += interval;
-		}
+if (pause <= 0 || pause < (interval / 4)) {
+	if (forever || *caught_cont) {
+		*wakeup = now + interval;
+		pause = interval;
 	} else {
+		pause = interval / 2;
 		*wakeup += interval;
 	}
+} else {
+	*wakeup += interval;
+}
 
-	if (pause < 1000) {
-		return;
-	}
+if (pause < 1000) {
+	return;
+}
 
-	pause_left = pause;
-	do {
-		pause_tv.tv_sec = pause_left / NANOSEC;
-		pause_tv.tv_nsec = pause_left % NANOSEC;
-		status = nanosleep(&pause_tv, (struct timespec *)NULL);
-		if (status < 0) {
-			if (errno == EINTR) {
-				now = gethrtime();
-				pause_left = *wakeup - now;
-				if (pause_left < 1000) {
-					return;
-				}
-			} else {
-				perror("nanosleep");
-				exit(3);
+pause_left = pause;
+do {
+	pause_tv.tv_sec = pause_left / NANOSEC;
+	pause_tv.tv_nsec = pause_left % NANOSEC;
+	status = nanosleep(&pause_tv, (struct timespec *)NULL);
+	if (status < 0) {
+		if (errno == EINTR) {
+			now = gethrtime();
+			pause_left = *wakeup - now;
+			if (pause_left < 1000) {
+				return;
 			}
+		} else {
+			perror("nanosleep");
+			exit(3);
 		}
-	} while (status != 0);
+	}
+} while (status != 0);
 }
 
 /*
- * Inserts an instance in the per selector list.
- */
+* Inserts an instance in the per selector list.
+*/
 static void
 nvpair_insert(ks_instance_t *ksi, char *name, ks_value_t *value,
-    uchar_t data_type)
+	uchar_t data_type)
 {
-	ks_nvpair_t	*instance;
-	ks_nvpair_t	*tmp;
+ks_nvpair_t	*instance;
+ks_nvpair_t	*tmp;
 
-	instance = (ks_nvpair_t *)malloc(sizeof (ks_nvpair_t));
-	if (instance == NULL) {
-		perror("malloc");
-		exit(3);
-	}
+instance = (ks_nvpair_t *)malloc(sizeof (ks_nvpair_t));
+if (instance == NULL) {
+	perror("malloc");
+	exit(3);
+}
 
-	(void) strlcpy(instance->name, name, KSTAT_STRLEN);
-	(void) memcpy(&instance->value, value, sizeof (ks_value_t));
-	instance->data_type = data_type;
+(void) strlcpy(instance->name, name, KSTAT_STRLEN);
+(void) memcpy(&instance->value, value, sizeof (ks_value_t));
+instance->data_type = data_type;
 
-	tmp = list_head(&ksi->ks_nvlist);
-	while (tmp != NULL && strcasecmp(instance->name, tmp->name) > 0)
-		tmp = list_next(&ksi->ks_nvlist, tmp);
+tmp = list_head(&ksi->ks_nvlist);
+while (tmp != NULL && strcasecmp(instance->name, tmp->name) > 0)
+	tmp = list_next(&ksi->ks_nvlist, tmp);
 
-	list_insert_before(&ksi->ks_nvlist, tmp, instance);
+list_insert_before(&ksi->ks_nvlist, tmp, instance);
 }
 
 /*
- * Allocates a new all-matching selector.
- */
+* Allocates a new all-matching selector.
+*/
 static ks_selector_t *
 new_selector(void)
 {
-	ks_selector_t	*selector;
+ks_selector_t	*selector;
 
-	selector = (ks_selector_t *)malloc(sizeof (ks_selector_t));
-	if (selector == NULL) {
+selector = (ks_selector_t *)malloc(sizeof (ks_selector_t));
+if (selector == NULL) {
+	perror("malloc");
+	exit(3);
+}
+
+list_link_init(&selector->ks_next);
+
+selector->ks_module.pstr = "*";
+selector->ks_instance.pstr = "*";
+selector->ks_name.pstr = "*";
+selector->ks_statistic.pstr = "*";
+
+return (selector);
+}
+
+/*
+* This function was taken from the perl kstat module code - please
+* see for further comments there.
+*/
+static kstat_raw_reader_t
+lookup_raw_kstat_fn(char *module, char *name)
+{
+char		key[KSTAT_STRLEN * 2];
+register char 	*f, *t;
+int		n = 0;
+
+for (f = module, t = key; *f != '\0'; f++, t++) {
+	while (*f != '\0' && isdigit(*f))
+		f++;
+	*t = *f;
+}
+*t++ = ':';
+
+for (f = name; *f != '\0'; f++, t++) {
+	while (*f != '\0' && isdigit(*f))
+		f++;
+	*t = *f;
+}
+*t = '\0';
+
+while (ks_raw_lookup[n].fn != NULL) {
+	if (strncmp(ks_raw_lookup[n].name, key, strlen(key)) == 0)
+		return (ks_raw_lookup[n].fn);
+	n++;
+}
+
+return (0);
+}
+
+/*
+* Match a string against a shell glob or extended regular expression.
+*/
+static boolean_t
+ks_match(const char *str, ks_pattern_t *pattern)
+{
+int	regcode;
+char	*regstr;
+char	*errbuf;
+size_t	bufsz;
+
+if (pattern->pstr != NULL && gmatch(pattern->pstr, "/*/") != 0) {
+	/* All regex patterns are strdup'd copies */
+	regstr = pattern->pstr + 1;
+	*(strrchr(regstr, '/')) = '\0';
+
+	regcode = regcomp(&pattern->preg, regstr,
+			REG_EXTENDED | REG_NOSUB);
+	if (regcode != 0) {
+		bufsz = regerror(regcode, NULL, NULL, 0);
+		if (bufsz != 0) {
+			errbuf = malloc(bufsz);
+			if (errbuf == NULL) {
+				perror("malloc");
+				exit(3);
+			}
+			(void) regerror(regcode, NULL, errbuf, bufsz);
+			(void) fprintf(stderr, "kstat: %s\n", errbuf);
+		}
+		usage();
+		exit(2);
+	}
+
+	pattern->pstr = NULL;
+}
+
+if (pattern->pstr == NULL) {
+	return (regexec(&pattern->preg, str, 0, NULL, 0) == 0);
+}
+
+return ((gmatch(str, pattern->pstr) != 0));
+}
+
+/*
+* Iterate over all kernel statistics and save matches.
+*/
+static void
+ks_instances_read(kstat_ctl_t *kc)
+{
+kstat_raw_reader_t save_raw = NULL;
+kid_t		id;
+ks_selector_t	*selector;
+ks_instance_t	*ksi;
+ks_instance_t	*tmp;
+kstat_t		*kp;
+boolean_t	skip;
+
+for (kp = kc->kc_chain; kp != NULL; kp = kp->ks_next) {
+	/* Don't bother storing the kstat headers */
+	if (strncmp(kp->ks_name, "kstat_", 6) == 0) {
+		continue;
+	}
+
+	/* Don't bother storing raw stats we don't understand */
+	if (kp->ks_type == KSTAT_TYPE_RAW) {
+		save_raw = lookup_raw_kstat_fn(kp->ks_module,
+				kp->ks_name);
+		if (save_raw == NULL) {
+#ifdef REPORT_UNKNOWN
+			(void) fprintf(stderr,
+					"Unknown kstat type %s:%d:%s - "
+					"%d of size %d\n", kp->ks_module,
+					kp->ks_instance, kp->ks_name,
+					kp->ks_ndata, kp->ks_data_size);
+#endif
+			continue;
+		}
+	}
+
+	/*
+	 * Iterate over the list of selectors and skip
+	 * instances we dont want. We filter for statistics
+	 * later, as we dont know them yet.
+	 */
+	skip = B_TRUE;
+	selector = list_head(&selector_list);
+	while (selector != NULL) {
+		if (ks_match(kp->ks_module, &selector->ks_module) &&
+				ks_match(kp->ks_name, &selector->ks_name)) {
+			skip = B_FALSE;
+			break;
+		}
+		selector = list_next(&selector_list, selector);
+	}
+
+	if (skip) {
+		continue;
+	}
+
+	/*
+	 * Allocate a new instance and fill in the values
+	 * we know so far.
+	 */
+	ksi = (ks_instance_t *)malloc(sizeof (ks_instance_t));
+	if (ksi == NULL) {
 		perror("malloc");
 		exit(3);
 	}
 
-	list_link_init(&selector->ks_next);
+	list_link_init(&ksi->ks_next);
 
-	selector->ks_module.pstr = "*";
-	selector->ks_instance.pstr = "*";
-	selector->ks_name.pstr = "*";
-	selector->ks_statistic.pstr = "*";
+	(void) strlcpy(ksi->ks_zone, "global", KSTAT_STRLEN);
+	(void) strlcpy(ksi->ks_module, kp->ks_module, KSTAT_STRLEN);
+	(void) strlcpy(ksi->ks_name, kp->ks_name, KSTAT_STRLEN);
+	(void) strlcpy(ksi->ks_class, kp->ks_class, KSTAT_STRLEN);
 
-	return (selector);
-}
+	ksi->ks_instance = kp->ks_instance;
+	ksi->ks_snaptime = kp->ks_snaptime;
+	ksi->ks_type = kp->ks_type;
 
-/*
- * This function was taken from the perl kstat module code - please
- * see for further comments there.
- */
-static kstat_raw_reader_t
-lookup_raw_kstat_fn(char *module, char *name)
-{
-	char		key[KSTAT_STRLEN * 2];
-	register char 	*f, *t;
-	int		n = 0;
+	list_create(&ksi->ks_nvlist, sizeof (ks_nvpair_t),
+			offsetof(ks_nvpair_t, nv_next));
 
-	for (f = module, t = key; *f != '\0'; f++, t++) {
-		while (*f != '\0' && isdigit(*f))
-			f++;
-		*t = *f;
-	}
-	*t++ = ':';
-
-	for (f = name; *f != '\0'; f++, t++) {
-		while (*f != '\0' && isdigit(*f))
-			f++;
-		*t = *f;
-	}
-	*t = '\0';
-
-	while (ks_raw_lookup[n].fn != NULL) {
-		if (strncmp(ks_raw_lookup[n].name, key, strlen(key)) == 0)
-			return (ks_raw_lookup[n].fn);
-		n++;
+	SAVE_HRTIME_X(ksi, "crtime", kp->ks_crtime);
+	SAVE_HRTIME_X(ksi, "snaptime", kp->ks_snaptime);
+	if (g_pflg) {
+		SAVE_STRING_X(ksi, "class", kp->ks_class);
 	}
 
-	return (0);
-}
+	/* Insert this instance into a sorted list */
+	tmp = list_head(&instances_list);
+	while (tmp != NULL && compare_instances(ksi, tmp) > 0)
+		tmp = list_next(&instances_list, tmp);
 
-/*
- * Match a string against a shell glob or extended regular expression.
- */
-static boolean_t
-ks_match(const char *str, ks_pattern_t *pattern)
-{
-	int	regcode;
-	char	*regstr;
-	char	*errbuf;
-	size_t	bufsz;
+	list_insert_before(&instances_list, tmp, ksi);
 
-	if (pattern->pstr != NULL && gmatch(pattern->pstr, "/*/") != 0) {
-		/* All regex patterns are strdup'd copies */
-		regstr = pattern->pstr + 1;
-		*(strrchr(regstr, '/')) = '\0';
-
-		regcode = regcomp(&pattern->preg, regstr,
-		    REG_EXTENDED | REG_NOSUB);
-		if (regcode != 0) {
-			bufsz = regerror(regcode, NULL, NULL, 0);
-			if (bufsz != 0) {
-				errbuf = malloc(bufsz);
-				if (errbuf == NULL) {
-					perror("malloc");
-					exit(3);
-				}
-				(void) regerror(regcode, NULL, errbuf, bufsz);
-				(void) fprintf(stderr, "kstat: %s\n", errbuf);
-			}
-			usage();
-			exit(2);
-		}
-
-		pattern->pstr = NULL;
-	}
-
-	if (pattern->pstr == NULL) {
-		return (regexec(&pattern->preg, str, 0, NULL, 0) == 0);
-	}
-
-	return ((gmatch(str, pattern->pstr) != 0));
-}
-
-/*
- * Iterate over all kernel statistics and save matches.
- */
-static void
-ks_instances_read(kstat_ctl_t *kc)
-{
-	kstat_raw_reader_t save_raw = NULL;
-	kid_t		id;
-	ks_selector_t	*selector;
-	ks_instance_t	*ksi;
-	ks_instance_t	*tmp;
-	kstat_t		*kp;
-	boolean_t	skip;
-
-	for (kp = kc->kc_chain; kp != NULL; kp = kp->ks_next) {
-		/* Don't bother storing the kstat headers */
-		if (strncmp(kp->ks_name, "kstat_", 6) == 0) {
-			continue;
-		}
-
-		/* Don't bother storing raw stats we don't understand */
-		if (kp->ks_type == KSTAT_TYPE_RAW) {
-			save_raw = lookup_raw_kstat_fn(kp->ks_module,
-			    kp->ks_name);
-			if (save_raw == NULL) {
+	/* Read the actual statistics */
+  id = kstat_read(kc, kp, NULL);
+	if (id == -1) {
 #ifdef REPORT_UNKNOWN
-				(void) fprintf(stderr,
-				    "Unknown kstat type %s:%d:%s - "
-				    "%d of size %d\n", kp->ks_module,
-				    kp->ks_instance, kp->ks_name,
-				    kp->ks_ndata, kp->ks_data_size);
+  	perror("kstat_read");
 #endif
-				continue;
-			}
-		}
-
-		/*
-		 * Iterate over the list of selectors and skip
-		 * instances we dont want. We filter for statistics
-		 * later, as we dont know them yet.
-		 */
-		skip = B_TRUE;
-		selector = list_head(&selector_list);
-		while (selector != NULL) {
-			if (ks_match(kp->ks_module, &selector->ks_module) &&
-			    ks_match(kp->ks_name, &selector->ks_name)) {
-				skip = B_FALSE;
-				break;
-			}
-			selector = list_next(&selector_list, selector);
-		}
-
-		if (skip) {
-			continue;
-		}
-
-		/*
-		 * Allocate a new instance and fill in the values
-		 * we know so far.
-		 */
-		ksi = (ks_instance_t *)malloc(sizeof (ks_instance_t));
-		if (ksi == NULL) {
-			perror("malloc");
-			exit(3);
-		}
-
-		list_link_init(&ksi->ks_next);
-
-		(void) strlcpy(ksi->ks_module, kp->ks_module, KSTAT_STRLEN);
-		(void) strlcpy(ksi->ks_name, kp->ks_name, KSTAT_STRLEN);
-		(void) strlcpy(ksi->ks_class, kp->ks_class, KSTAT_STRLEN);
-
-		ksi->ks_instance = kp->ks_instance;
-		ksi->ks_snaptime = kp->ks_snaptime;
-		ksi->ks_type = kp->ks_type;
-
-		list_create(&ksi->ks_nvlist, sizeof (ks_nvpair_t),
-		    offsetof(ks_nvpair_t, nv_next));
-
-		SAVE_HRTIME_X(ksi, "crtime", kp->ks_crtime);
-		SAVE_HRTIME_X(ksi, "snaptime", kp->ks_snaptime);
-		if (g_pflg) {
-			SAVE_STRING_X(ksi, "class", kp->ks_class);
-		}
-
-		/* Insert this instance into a sorted list */
-		tmp = list_head(&instances_list);
-		while (tmp != NULL && compare_instances(ksi, tmp) > 0)
-			tmp = list_next(&instances_list, tmp);
-
-		list_insert_before(&instances_list, tmp, ksi);
-
-		/* Read the actual statistics */
-		id = kstat_read(kc, kp, NULL);
-		if (id == -1) {
-#ifdef REPORT_UNKNOWN
-			perror("kstat_read");
-#endif
-			continue;
-		}
-
-		switch (kp->ks_type) {
-		case KSTAT_TYPE_RAW:
-			save_raw(kp, ksi);
-			break;
-		case KSTAT_TYPE_NAMED:
-			save_named(kp, ksi);
-			break;
-		case KSTAT_TYPE_INTR:
-			save_intr(kp, ksi);
-			break;
-		case KSTAT_TYPE_IO:
-			save_io(kp, ksi);
-			break;
-		case KSTAT_TYPE_TIMER:
-			save_timer(kp, ksi);
-			break;
-		default:
-			assert(B_FALSE); /* Invalid type */
-			break;
-		}
+		continue;
 	}
+   
+	switch (kp->ks_type) {
+	case KSTAT_TYPE_RAW:
+		save_raw(kp, ksi);
+		break;
+	case KSTAT_TYPE_NAMED:
+		save_named(kp, ksi);
+		break;
+	case KSTAT_TYPE_INTR:
+		save_intr(kp, ksi);
+		break;
+	case KSTAT_TYPE_IO:
+		save_io(kp, ksi);
+		break;
+	case KSTAT_TYPE_TIMER:
+		save_timer(kp, ksi);
+		break;
+	default:
+		assert(B_FALSE); /* Invalid type */
+		break;
+	}
+}
 }
 
 /*
- * Print the value of a name-value pair.
- */
+* Print the value of a name-value pair.
+*/
 static void
 ks_value_print(ks_nvpair_t *nvpair)
 {
-	switch (nvpair->data_type) {
-	case KSTAT_DATA_CHAR:
-		(void) fprintf(stdout, "%s", nvpair->value.c);
-		break;
-	case KSTAT_DATA_INT32:
-		(void) fprintf(stdout, "%d", nvpair->value.i32);
-		break;
-	case KSTAT_DATA_UINT32:
-		(void) fprintf(stdout, "%u", nvpair->value.ui32);
-		break;
-	case KSTAT_DATA_INT64:
-		(void) fprintf(stdout, "%lld", nvpair->value.i64);
-		break;
-	case KSTAT_DATA_UINT64:
-		(void) fprintf(stdout, "%llu", nvpair->value.ui64);
-		break;
-	case KSTAT_DATA_STRING:
-		(void) fprintf(stdout, "%s", KSTAT_NAMED_STR_PTR(nvpair));
-		break;
-	case KSTAT_DATA_HRTIME:
-		if (nvpair->value.ui64 == 0)
-			(void) fprintf(stdout, "0");
-		else
-			(void) fprintf(stdout, "%.9f",
-			    nvpair->value.ui64 / 1000000000.0);
-		break;
-	default:
-		assert(B_FALSE);
-	}
+switch (nvpair->data_type) {
+case KSTAT_DATA_CHAR:
+	(void) fprintf(stdout, "%s", nvpair->value.c);
+	break;
+case KSTAT_DATA_INT32:
+	(void) fprintf(stdout, "%d", nvpair->value.i32);
+	break;
+case KSTAT_DATA_UINT32:
+	(void) fprintf(stdout, "%u", nvpair->value.ui32);
+	break;
+case KSTAT_DATA_INT64:
+	(void) fprintf(stdout, "%ld", nvpair->value.i64);
+	break;
+case KSTAT_DATA_UINT64:
+	(void) fprintf(stdout, "%lu", nvpair->value.ui64);
+	break;
+case KSTAT_DATA_STRING:
+	(void) fprintf(stdout, "%s", KSTAT_NAMED_STR_PTR(nvpair));
+	break;
+case KSTAT_DATA_HRTIME:
+	if (nvpair->value.ui64 == 0)
+		(void) fprintf(stdout, "0");
+	else
+		(void) fprintf(stdout, "%.9f",
+				nvpair->value.ui64 / 1000000000.0);
+	break;
+default:
+	assert(B_FALSE);
+}
 }
 
 /*
- * put value in a buffer preceeded by its length
- */
+* put value in a buffer preceeded by its length
+*/
 static int
-cp_to_buf(char* dest, void* src, char type, int len)
+cp_to_buf(char* dest, void* src, char type, uint32_t len)
 {
   if (src && len) {
-    memcpy(dest, &len, sizeof(int));
-    *(dest+sizeof(int)) = type;
-    memcpy(dest+sizeof(int)+1, src, len);
-    return sizeof(int)+1+len;
+  	char* pos = dest;
+    switch (type) {
+    case 0:
+    break;
+    case 1: 
+  	  *(uint32_t*)pos = htonl(len);
+    	pos = pos + sizeof(uint32_t);
+    default:
+    		 *pos = type;
+  	  	 pos++;
+	  } 
+  	memcpy(pos, src, len);
+  	return (pos - dest)+len;
   } else {
-    memcpy(dest, 0, sizeof(int));
-    return sizeof(int);
+  	*(uint32_t*)dest = htonl(0);
+  	return sizeof(uint32_t);
   }
 }
+
 static char*
-packet_fields(char* buf, int* len,
-									 const hrtime_t snap_time,
-									 const char* name,
-									 const char* module,
-									 const char* class,
-									 int instance) {
-  int pos = *len;
-  pos += cp_to_buf(buf+pos, (void*)&snap_time, 't', sizeof(hrtime_t));
-  pos += cp_to_buf(buf+pos, (void*)name,       's', strlen(name));
-  pos += cp_to_buf(buf+pos, (void*)module,     's', strlen(module));
-  pos += cp_to_buf(buf+pos, (void*)class,      's', strlen(class));
-  pos += cp_to_buf(buf+pos, (void*)&instance,  'i', sizeof(int));
-  *len = pos;
-  return buf;
+packet_fields(char* buf, uint32_t* len,
+								 const char* hostname,
+								 const char* zone,
+								 const hrtime_t snap_time,
+								 const char* name,
+								 const char* module,
+								 const char* class,
+								 int instance) {
+
+uint64_t nbo_snap_time = htonll(snap_time);
+uint32_t nbo_instane = htonl(instance);
+uint32_t pos = *len;
+pos += cp_to_buf(buf+pos, (void*)hostname,       1, strlen(hostname));
+pos += cp_to_buf(buf+pos, (void*)zone,           1, strlen(zone));
+pos += cp_to_buf(buf+pos, (void*)&nbo_snap_time, 0, sizeof(uint64_t));
+pos += cp_to_buf(buf+pos, (void*)name,           1, strlen(name));
+pos += cp_to_buf(buf+pos, (void*)module,         1, strlen(module));
+pos += cp_to_buf(buf+pos, (void*)class,          1, strlen(class));
+pos += cp_to_buf(buf+pos, (void*)&nbo_instane,   0, sizeof(uint32_t));
+*len = pos;
+return buf;
 }
 
 static void
-ks_value_print_buf(ks_nvpair_t *nvpair, char* buf, int* len)
+ks_value_print_buf(ks_nvpair_t *nvpair, char* buf, uint32_t* len)
 {
-	char* b = buf+sizeof(int32);
-	switch (nvpair->data_type) {
+uint64_t nbo;
+switch (nvpair->data_type) {
+case KSTAT_DATA_INT32:
+	nbo = htonll((uint64_t) nvpair->value.i32);  
+	*len += cp_to_buf(buf, &nbo, 'i', sizeof(uint64_t));
+	break;
+case KSTAT_DATA_UINT32:
+	nbo = htonll((uint64_t) nvpair->value.ui32);  
+	*len += cp_to_buf(buf, &nbo, 'i', sizeof(uint64_t));
+	break;
+case KSTAT_DATA_INT64:
+	nbo = htonll((uint64_t) nvpair->value.i64);  
+	*len += cp_to_buf(buf, &nbo, 'i', sizeof(uint64_t));
+	break;
+case KSTAT_DATA_HRTIME:
+case KSTAT_DATA_UINT64:
+	nbo = htonll((uint64_t) nvpair->value.ui64);  
+	*len += cp_to_buf(buf, &nbo, 'i', sizeof(uint64_t));
+	break;
 	case KSTAT_DATA_CHAR:
 		*len += cp_to_buf(buf, nvpair->value.c, 's', strlen(nvpair->value.c));
 		break;
-	case KSTAT_DATA_INT32:
-		*len += cp_to_buf(buf, &nvpair->value.i32, 'i', sizeof(int32_t));
-		break;
-	case KSTAT_DATA_UINT32:
-		*len += cp_to_buf(buf, &nvpair->value.ui32, 'i', sizeof(uint32_t));
-		break;
-	case KSTAT_DATA_INT64:
-		*len += cp_to_buf(buf, &nvpair->value.i64, 'i', sizeof(int64_t));
-		break;
-	case KSTAT_DATA_UINT64:
-		*len += cp_to_buf(buf, &nvpair->value.ui64, 'i', sizeof(uint64_t));
-		break;
 	case KSTAT_DATA_STRING:
 		*len += cp_to_buf(buf, KSTAT_NAMED_STR_PTR(nvpair), 's', KSTAT_NAMED_STR_BUFLEN(nvpair));
-		break;
-	case KSTAT_DATA_HRTIME:
-		{
-			double d= nvpair->value.ui64 / 1000000000.0;
-			*len += cp_to_buf(buf, &d, 'd', sizeof(double));
-		}
 		break;
 	default:
 		assert(B_FALSE);
@@ -854,8 +883,11 @@ static void
 ks_instance_print_nsq(ks_instance_t *ksi, ks_nvpair_t *nvpair)
 {
 	static char buffer[512];
-	int len;
-	packet_fields(buffer, &len,
+	uint32_t len;
+  // We elave the first uint32_t free to add the size later
+	packet_fields(buffer+sizeof(uint32_t), &len,
+                tachyon_host,
+                ksi->ks_zone,
 								ksi->ks_snaptime,
 								ksi->ks_name,
 								ksi->ks_module,
@@ -863,9 +895,7 @@ ks_instance_print_nsq(ks_instance_t *ksi, ks_nvpair_t *nvpair)
 								ksi->ks_instance);
 
 	ks_value_print_buf(nvpair, buffer+len, &len);
-	memmove(buffer+sizeof(int), buffer, len); // shift bytes
-	len += sizeof(int);
-	*(int*)buffer = len;
+	*(uint32_t*)buffer = len;
 	tm_curl_post(buffer, len);
 }
 
@@ -1510,6 +1540,9 @@ save_named(kstat_t *kp, ks_instance_t *ksi)
 			    (ks_value_t *)&knp->value, KSTAT_DATA_UINT64);
 			break;
 		case KSTAT_DATA_STRING:
+      if (strncmp(knp->name, "zonename", 8) == 0) {
+        strlcpy(ksi->ks_zone, KSTAT_NAMED_STR_PTR(knp), KSTAT_STRLEN);
+      }
 			SAVE_STRING_X(ksi, knp->name, KSTAT_NAMED_STR_PTR(knp));
 			break;
 		default:
