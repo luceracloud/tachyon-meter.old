@@ -354,7 +354,8 @@ while (count == -1 || count-- > 0) {
 		ks_sleep_until(&start_n, period_n, infinite_cycles,
 				&caught_cont);
 		(void) kstat_chain_update(kc);
-		(void) putchar('\n');
+    if (! g_nflg)
+  		(void) putchar('\n');
 	}
 }
 
