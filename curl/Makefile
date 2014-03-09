@@ -1,4 +1,4 @@
-CFLAGS= -g
+CFLAGS= -g -static
 
 HEADERS = tm_curl.h tm_kstat_data.h
 SOURCES = tm_curl.c tm_kstat_data.c

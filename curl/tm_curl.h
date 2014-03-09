@@ -3,6 +3,7 @@
 
 #include <sys/kstat.h>
 
+void tm_curl_global_init();
 void tm_curl_set_url(const char* url);
 void tm_curl_done();
 int curl_verbose(int on);

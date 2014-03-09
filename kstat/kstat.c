@@ -155,6 +155,8 @@ while ((c = getopt(argc, argv, "h?Cqjlpx:H:T:m:i:n:s:c:")) != EOF)
 		break;
 	case 'x':
 		g_url = g_pflg = g_nflg = B_TRUE;
+		// If we use nsq we need to init curl globaly.
+    tm_curl_global_init();
 		tachyon_url = (char *)ks_safe_strdup(optarg);
 		break;
 	case 'p':
@@ -1045,6 +1047,9 @@ ks_instances_print(void)
 		list_destroy(&ktmp->ks_nvlist);
 		free(ktmp);
 	}
+  if (g_nflg) {
+    tm_curl_done();
+  }
 }
 
 static void

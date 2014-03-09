@@ -49,7 +49,10 @@ lint := LINTFLAGS = -muxs -I$(STATCOMMONDIR)
 
 .KEEP_STATE:
 
-all: $(PROG)
+all: curl $(PROG)
+
+curl:
+	make -C ../curl
 
 install: all $(ROOTPROG)
 
