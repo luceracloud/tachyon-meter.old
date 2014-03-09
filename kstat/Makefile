@@ -23,7 +23,7 @@
 # Use is subject to license terms.
 #
 
-PROG = kstat
+PROG = tachyon-meter
 OBJS = kstat.o
 SRCS =$(OBJS:%.o=%.c) $(COMMON_SRCS)
 
@@ -56,8 +56,8 @@ curl:
 
 install: all $(ROOTPROG)
 
-kstat: kstat.c $(LIBCOMMON) $(LIBCURL)
-	cc -Wall -g -o kstat kstat.c -L./common -L../curl -lcommon -ltmcurl -lcurl -lkstat -ldevinfo -lcmdutils -lavl -lgen
+tachyon-meter: kstat.c $(LIBCOMMON) $(LIBCURL)
+	cc -Wall -g -o tachyon-meter kstat.c -L./common -L../curl -lcommon -ltmcurl -lcurl -lkstat -ldevinfo -lcmdutils -lavl -lgen
 
 $(LIBCOMMON): 
 	cd common; make

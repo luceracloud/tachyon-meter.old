@@ -7,5 +7,6 @@ pckt.pb.cc
 pckt.pb.h
 *.a
 *.o
-kstat/kstat
 core
+kstat/tachyon-meter
+dist

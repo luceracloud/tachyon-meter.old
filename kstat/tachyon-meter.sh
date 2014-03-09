@@ -1,8 +1,9 @@
 #!/bin/bash
 
+base=/opt/tachyon-meter
 app=tachyon_meter
 svcprop_dflt() {
-	if svcprop -p application/${1} ${app} 2> /dev/null > /dev/null
+        if svcprop -p application/${1} ${app} 2> /dev/null > /dev/null
   then
     echo $(svcprop -p application/${1}  ${app}| sed 's/\\//g')
   else
@@ -18,7 +19,7 @@ topic=$(svcprop_dflt topic tachyon)
 hostname=$(svcprop_dflt hostname "$(hostname)")
 
 url="http://${host}:${port}/put?topic=${topic}"
-cmd="./kstat -x '${url}' -H '${hostname}'"
+cmd="${base}/bin/tachyon-meter -x '${url}' -H '${hostname}'"
 
 while read stat
 do
@@ -26,7 +27,7 @@ do
   then
     cmd="${cmd} '${stat}'"
   fi
-done < kstat.conf
+done < ${base}/etc/kstat.conf
 
 if [ ! -z ${ival} ]
 then
@@ -37,11 +38,11 @@ then
   fi
 fi
 
-
-# run $parms every 1 second 10 times
-#./kstat -x $parms 1 10
-# same thing but run forever
-#./kstat -x $parms 1
-
 echo "${cmd}"
-eval "${cmd}"
+## debug
+if [ -z ${DEBUG_MEM} ]
+then
+  eval UMEM_DEBUG=default UMEM_LOGGING=transaction LD_PRELOAD=libumem.so.1 LD_LIBRARY_PATH=${base}/lib ${cmd}
+else
+  eval LD_LIBRARY_PATH=${base}/lib ${cmd}
+fi
