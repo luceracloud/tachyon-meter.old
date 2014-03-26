@@ -44,6 +44,7 @@ static void tm_curl_set_opts(const char* data, int len) {
   curl_easy_setopt(_curl, CURLOPT_WRITEFUNCTION, resp_cb);
   curl_easy_setopt(_curl, CURLOPT_POSTFIELDS, data);
   curl_easy_setopt(_curl, CURLOPT_POSTFIELDSIZE, len);
+  curl_easy_setopt(_curl, CURLOPT_TIMEOUT, 1);
 }
 
 int tm_curl_post(const char* data, int len) {

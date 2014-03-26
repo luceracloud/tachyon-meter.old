@@ -86,6 +86,7 @@ static ks_pattern_t	g_ks_class = {"*", {0}};
 
 /* Return zero if a selector did match */
 static int	g_matched = 1;
+time_t kstat_time;
 
 /* Sorted list of kstat instances */
 static list_t	instances_list;
@@ -348,8 +349,10 @@ if (count > 1) {
 period_n = (hrtime_t)interval * NANOSEC;
 start_n = gethrtime();
 
+
 while (count == -1 || count-- > 0) {
 	ks_instances_read(kc);
+  kstat_time = time(NULL);
 	ks_instances_print();
 
 	if (interval && count) {
@@ -813,7 +816,7 @@ static char*
 packet_fields(char* buf, uint32_t* len,
 								 const char* hostname,
 								 const char* zone,
-								 const hrtime_t snap_time,
+								 const time_t snap_time,
 								 const char* name,
 								 const char* module,
 								 const char* class,
@@ -904,7 +907,7 @@ ks_instance_print_nsq(ks_instance_t *ksi, ks_nvpair_t *nvpair)
 	packet_fields(buffer, &len,
                 tachyon_host,
                 ksi->ks_zone,
-								ksi->ks_snaptime,
+								kstat_time,
 								ksi->ks_name,
 								ksi->ks_module,
 								ksi->ks_class,
