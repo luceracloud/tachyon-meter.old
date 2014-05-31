@@ -21,3 +21,6 @@ clean:
 
 gz: dist
 	(cd dist; tar zcf ../tachyon-meter.tgz tachyon-meter)
+
+package:
+	make -C rel/pkg
