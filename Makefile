@@ -8,7 +8,8 @@ dist: all
 	mkdir -p dist/tachyon-meter/share/smf/methods
 	cp tachyon.xml dist/tachyon-meter/share/smf/methods
 	cp kstat/tachyon-meter{,.sh} dist/tachyon-meter/bin
-	cp kstat/kstat.conf dist/tachyon-meter/etc
+	cp kstat/kstat.conf dist/tachyon-meter/etc/kstat.conf.example
+	cp tachyon.conf dist/tachyon-meter/etc/tachyon.conf.example
 	ldd dist/tachyon-meter/bin/tachyon-meter | grep 'libcrypto\|libcurl\|libiconv\|libidn\|libintl\|liblber\|libldap\|libsasl2\|libssh2\|libss' | awk '{print $$3}' | xargs -I{} cp {} dist/tachyon-meter/lib
 
 tachyon-meter:
@@ -22,5 +23,5 @@ clean:
 gz: dist
 	(cd dist; tar zcf ../tachyon-meter.tgz tachyon-meter)
 
-package:
-	make -C rel/pkg
+package: gz
+	make -C pkg
