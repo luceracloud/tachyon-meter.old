@@ -11,3 +11,5 @@ core
 kstat/tachyon-meter
 dist
 tachyon-meter.tgz
+pkg/*.gz
+tachyon.version
