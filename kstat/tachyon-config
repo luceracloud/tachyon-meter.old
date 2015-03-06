@@ -1,0 +1,8 @@
+#tachyon configuration
+host=172.21.0.1
+port=4151
+ival=1
+repeat=''
+is_smf=''
+topic=tachyon
+hostname=$(hostname)
