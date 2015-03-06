@@ -2,22 +2,15 @@
 
 base=/opt/tachyon-meter
 app=tachyon-meter
-svcprop_dflt() {
-  if svcprop -p application/${1} ${app} 2> /dev/null > /dev/null
-  then
-    echo $(svcprop -p application/${1}  ${app}| sed 's/\\//g')
-  else
-    echo "${2}"
-  fi
-}
 
-host=$(svcprop_dflt host 172.21.0.1)
-port=$(svcprop_dflt port 4151)
-ival=$(svcprop_dflt interval 1)
-repeat=$(svcprop_dflt repeat '')
-is_smf=$(svcprop_dflt is_smf '')
-topic=$(svcprop_dflt topic tachyon)
-hostname=$(svcprop_dflt hostname "$(hostname)")
+## loads config file
+if [ -e ${base}/etc/tachyon-config ]
+then
+    . ${base}/etc/tachyon-config
+else
+    echo "Missing config file: ${base}/etc/tachyon-config"
+    exit
+fi
 
 url="http://${host}:${port}/put?topic=${topic}"
 cmd="${base}/bin/tachyon-meter -x '${url}' -H '${hostname}'"
