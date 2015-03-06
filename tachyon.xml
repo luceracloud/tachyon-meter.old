@@ -12,13 +12,6 @@
     </dependency>
     <exec_method type="method" name="start" exec="/opt/tachyon-meter/bin/tachyon-meter.sh" timeout_seconds="60" />
     <exec_method type="method" name="stop" exec=":kill" timeout_seconds="60" />
-    <property_group name="application" type="application">
-      <propval name="host" type="astring" value="172.21.0.1" />
-      <propval name="port" type="astring" value="4151" />
-      <propval name="interval" type="astring" value="1" />
-      <propval name="topic" type="astring" value="tachyon" />
-      <propval name="is_smf" type="astring" value="yes" />
-    </property_group>
     <stability value="Evolving" />
     <template>
       <common_name>
