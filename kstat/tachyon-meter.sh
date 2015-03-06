@@ -9,7 +9,7 @@ then
     . ${base}/etc/tachyon-config
 else
     echo "Missing config file: ${base}/etc/tachyon-config"
-    exit
+    exit 1
 fi
 
 url="http://${host}:${port}/put?topic=${topic}"
