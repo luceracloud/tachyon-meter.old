@@ -1,4 +1,4 @@
-.PHONY: dist
+.PHONY: dist test deps version_header
 
 all: tachyon-meter version
 
@@ -29,3 +29,13 @@ package: gz
 
 version:
 	echo "$(shell git symbolic-ref HEAD 2> /dev/null | cut -b 12-)-$(shell git log --pretty=format:'%h, %ad' -1)" > tachyon.version
+
+# Dummy targets
+test:	
+	true
+
+deps:
+	true
+
+version_header:
+	true
