@@ -1563,6 +1563,8 @@ save_named(kstat_t *kp, ks_instance_t *ksi)
 		case KSTAT_DATA_STRING:
       if (strncmp(knp->name, "zonename", 8) == 0) {
         strlcpy(ksi->ks_zone, KSTAT_NAMED_STR_PTR(knp), KSTAT_STRLEN);
+      } else if (strncmp(knp->name, "uuid", 4) == 0) {
+        strlcpy(ksi->ks_zone, KSTAT_NAMED_STR_PTR(knp), KSTAT_STRLEN);
       }
 			SAVE_STRING_X(ksi, knp->name, KSTAT_NAMED_STR_PTR(knp));
 			break;
